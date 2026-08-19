@@ -45,8 +45,8 @@ transcript .txt/.vtt/.srt/paste
 1. Clone the repo and enter it:
 
    ```bash
-   git clone <this-repo-url> MeetingPilot
-   cd MeetingPilot
+   git clone https://github.com/ttshah1001/meetingpilot.git
+   cd meetingpilot
    ```
 
 2. Install Python 3.11+ and [uv](https://docs.astral.sh/uv/). This project pins 3.11 in `.python-version`. If you only have 3.12+, `uv` will still install a 3.11 interpreter:
