@@ -1,0 +1,36 @@
+[project]
+name = "meetingpilot"
+version = "0.1.0"
+description = "LLM agent that turns meeting transcripts into tracked, calendared action items."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+    "python-dotenv>=1.0.1",
+    "sqlalchemy>=2.0.36",
+    "pydantic>=2.9.0",
+    "streamlit>=1.40.0",
+    "google-api-python-client>=2.150.0",
+    "google-auth-oauthlib>=1.2.1",
+    "google-auth-httplib2>=0.2.0",
+    "python-dateutil>=2.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[project.scripts]
+meetingpilot = "meetingpilot.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["meetingpilot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

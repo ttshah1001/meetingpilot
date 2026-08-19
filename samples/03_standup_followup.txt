@@ -1,0 +1,19 @@
+Meeting: Thursday standup — Atlas checkout follow-up
+Date: 2026-08-20
+Attendees: Priya, Marcus, Lin, Samir
+
+Priya: Quick standup. Yesterday we planned checkout work; I want to make sure nothing is dropped.
+
+Marcus: Reminder that I'm still drafting the Q3 checkout roadmap — I'll send it to Priya by Friday. Same deliverable as yesterday.
+
+Marcus: To be extra clear: I will draft the Q3 checkout roadmap and circulate it. That's the same doc.
+
+Lin: Coupon mock in Figma is in progress, still due next week.
+
+Samir: Regression test plan is on track for August 28.
+
+Priya: New item — I will send the launch checklist to legal by end of week.
+
+Marcus: I also still need to file the OpenAPI ticket for the payments endpoint. Repeating it so it doesn't get lost.
+
+Samir: I'll file a bug for the tax calculation flake if pairing slips.

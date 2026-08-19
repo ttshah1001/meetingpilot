@@ -1,0 +1,21 @@
+Meeting: Sprint planning — Atlas checkout
+Date: 2026-08-19
+Attendees: Priya (PM), Marcus (eng), Lin (design), Samir (QA)
+
+Priya: Welcome everyone. Goal today is to lock Q3 checkout work. I'll recap decisions as action items.
+
+Marcus: I will draft the Q3 checkout roadmap and send it to Priya by Friday.
+
+Lin: I can mock the new coupon flow in Figma by next week.
+
+Samir: I'll write the regression test plan for checkout by 2026-08-28. High priority — we already slipped once.
+
+Priya: I'll schedule the stakeholder review for next Friday.
+
+Marcus: Also, I will file the OpenAPI ticket for the payments endpoint today.
+
+Priya: Great. Lin, please ping legal about the coupon copy once the mock is up — that's medium priority.
+
+Marcus: One more: I'll pair with Samir on the flaky tax calculation test tomorrow.
+
+Priya: That's the list. Thanks everyone.
