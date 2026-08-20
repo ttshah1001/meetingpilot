@@ -15,6 +15,7 @@ from meetingpilot.ics_export import write_ics_files
 from meetingpilot.ingestion import ingest_file, ingest_text
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
+from meetingpilot.tasks_tool import push_tasks
 
 
 def _meeting_date(value: str) -> date:
@@ -52,9 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stop after LLM call #1 and print extracted JSON (no planning, no DB).",
     )
     parser.add_argument(
-        "--diagram",
+        "--summary",
         action="store_true",
-        help="Also run the optional diagram-synthesis LLM call (Mermaid, from screenshots/transcript).",
+        help="Also run the optional summary + diagram-synthesis LLM call (short text summary plus "
+        "zero or more Mermaid diagrams, model-decided, from screenshots/transcript).",
     )
     parser.add_argument(
         "--no-save",
@@ -91,6 +93,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--export-ics",
         metavar="DIR",
         help="Write one .ics file per dated item into DIR. No API keys or network required.",
+    )
+    parser.add_argument(
+        "--push-tasks",
+        action="store_true",
+        help="After processing, create real checkable to-dos in Google Tasks for each dated item.",
+    )
+    parser.add_argument(
+        "--live-tasks",
+        action="store_true",
+        help="Disable dry-run when used with --push-tasks.",
     )
     return parser
 
@@ -132,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         title=args.title or Path(args.transcript).stem if args.transcript else "stdin",
         persist=not args.no_save,
         screenshots=screenshots or None,
-        generate_diagram_from_content=args.diagram,
+        generate_summary_from_content=args.summary,
     )
     print(json.dumps(result.to_console_dict(), indent=2, default=str))
 
@@ -177,6 +189,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.export_ics:
         written = write_ics_files(result.planned, args.export_ics)
         print(json.dumps({"ics_files": written}, indent=2))
+
+    if args.push_tasks:
+        dry_run = not args.live_tasks
+        pushes = push_tasks(result.planned, dry_run=dry_run)
+        print(
+            json.dumps(
+                {
+                    "tasks": [
+                        {
+                            "dry_run": p.dry_run,
+                            "task_id": p.task_id,
+                            "payload": p.payload,
+                        }
+                        for p in pushes
+                    ]
+                },
+                indent=2,
+            )
+        )
     return 0
 
 

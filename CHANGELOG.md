@@ -6,6 +6,24 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 - Transcript chunking for long meetings — planned, not yet built.
 
+## [0.5.1] - 2026-08-20
+
+### Changed
+- Added `.streamlit/config.toml` with a real color theme (dark base, violet primary) instead of Streamlit's plain default.
+- Reorganized the Streamlit sidebar: "Your name" and "Calendar for live events" moved to the top with inline explanations of why to set them; the three dry-run toggles and the summary/diagram toggle moved into a collapsed "Testing & advanced options" section — client-facing controls up top, testing knobs tucked away but still reachable.
+- `summary.py`'s meeting summary is now 2-3 short paragraphs instead of 2-4 sentences, more useful for someone who missed the meeting — verified it stays faithful to the transcript rather than padding with invented detail.
+
+## [0.5.0] - 2026-08-20
+
+### Added
+- Google Tasks tool (`meetingpilot/tasks_tool.py`) — same dry-run pattern as Calendar/Gmail. A more semantically correct destination for "action items" than Calendar all-day events (real checkable to-dos vs. date-based reminders). Wired into CLI (`--push-tasks`/`--live-tasks`) and Streamlit (per-item + bulk buttons, dry-run toggle).
+- Meeting summary text, alongside the existing optional diagram synthesis — renamed `diagram.py` → `summary.py`, `DiagramResult` → `MeetingSummary`. The diagram *count* is now model-decided (0, 1, or more) instead of a hardcoded single diagram.
+- Real client-side "Download SVG"/"Download PNG" buttons on each rendered diagram — mermaid.js already produces the SVG in the browser, the buttons just save that output, no server round-trip.
+- `scripts/check_access.py` now also verifies Google Tasks API access.
+
+### Changed
+- Extended the shared OAuth scope (`meetingpilot/google_auth.py`) to include `.../auth/tasks` alongside Calendar and Gmail — one combined consent covers all three.
+
 ## [0.4.1] - 2026-08-20
 
 ### Changed

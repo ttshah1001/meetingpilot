@@ -1,6 +1,6 @@
 # MeetingPilot
 
-MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items with owners, due dates, priorities, source quotes, and confidence scores. It stores them in a local SQLite database so later meetings can surface work that is still open, and can push a task to Google Calendar, draft it in Gmail (both dry-run by default), or export it as a `.ics` file (no API keys or network required — the fallback if Google access or wifi isn't available). It can also optionally reconstruct a Mermaid diagram from a whiteboard/flowchart screenshot or a process described in the transcript.
+MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items with owners, due dates, priorities, source quotes, and confidence scores. It stores them in a local SQLite database so later meetings can surface work that is still open, and can push a task to Google Calendar, Google Tasks, draft it in Gmail (all dry-run by default), or export it as a `.ics` file (no API keys or network required — the fallback if Google access or wifi isn't available). It can also optionally generate a short meeting summary plus zero or more Mermaid diagrams — the model decides how many, if any, are actually warranted — reconstructed from a whiteboard/flowchart screenshot or a process described in the transcript, downloadable as SVG or PNG.
 
 Full architecture (diagrams, design rationale, known limitations) is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). See [CHANGELOG.md](CHANGELOG.md) for what changed and when.
 
@@ -28,7 +28,7 @@ Full architecture (diagrams, design rationale, known limitations) is in [docs/AR
    pip install -e ".[dev]"
    ```
 
-3. **LLM API key (required for extraction, planning, and diagram synthesis).** MeetingPilot uses the Google Gemini API (free tier, AI Studio) with forced function calling (structured JSON), not free-text parsing.
+3. **LLM API key (required for extraction, planning, and the optional summary/diagram call).** MeetingPilot uses the Google Gemini API (free tier, AI Studio) with forced function calling (structured JSON), not free-text parsing.
 
    - Create a free API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) — no credit card required.
    - Copy the example env file and paste the key:
@@ -39,21 +39,21 @@ Full architecture (diagrams, design rationale, known limitations) is in [docs/AR
 
    - Set `GEMINI_API_KEY=...` inside `.env`. Optionally override `GEMINI_MODEL` (default `gemini-flash-lite-latest` — chosen for its more generous free-tier daily quota; `gemini-3.5-flash`/`gemini-3.6-flash` both cap at 20 requests/day).
 
-4. **Google Calendar + Gmail OAuth (optional — skip if you will demo with dry-run, which is the default).**
+4. **Google Calendar + Gmail + Tasks OAuth (optional — skip if you will demo with dry-run, which is the default).**
 
    1. Open [Google Cloud Console](https://console.cloud.google.com/) and create (or select) a project.
-   2. **APIs & Services → Library** → enable **Google Calendar API** and **Gmail API**.
+   2. **APIs & Services → Library** → enable **Google Calendar API**, **Gmail API**, and **Google Tasks API**.
    3. **APIs & Services → OAuth consent screen** (or **Audience**, in the newer console UI):
       - User type: External (or Internal on a Workspace org).
       - App name: `MeetingPilot`.
       - Add your Google account as a test user if the app is in Testing (project owners don't need to add themselves — that's expected, not an error).
-      - Under **Data Access**, add both scopes: `.../auth/calendar.events` and `.../auth/gmail.compose`.
+      - Under **Data Access**, add three scopes: `.../auth/calendar.events`, `.../auth/gmail.compose`, and `.../auth/tasks`.
    4. **APIs & Services → Credentials → Create credentials → OAuth client ID**.
       - Application type: **Desktop app**.
       - Download the JSON file.
    5. Save that file as `credentials.json` in the project root (it is gitignored). `credentials.example.json` shows the expected shape.
-   6. On the first live Calendar/Gmail action, a browser window opens requesting **both** scopes in one consent (`meetingpilot/google_auth.py`) — accept it, and MeetingPilot writes `token.json` next to the project (also gitignored). Later runs reuse and refresh that token automatically.
-   7. `calendar.events` allows creating/updating events, not wiping the whole calendar. `gmail.compose` only allows creating drafts — the app never sends mail.
+   6. On the first live Calendar/Gmail/Tasks action, a browser window opens requesting all three scopes in one consent (`meetingpilot/google_auth.py`) — accept it, and MeetingPilot writes `token.json` next to the project (also gitignored). Later runs reuse and refresh that token automatically.
+   7. `calendar.events` allows creating/updating events, not wiping the whole calendar. `gmail.compose` only allows creating drafts — the app never sends mail. `tasks` allows creating/updating real Google Tasks to-dos.
 
 5. Run `python scripts/check_access.py` (or `uv run python scripts/check_access.py`) to verify all four API doors (Gemini text, Gemini vision, Calendar, Gmail) work before relying on them for a demo.
 
@@ -67,7 +67,7 @@ From the project root, with the virtualenv managed by uv:
 uv run streamlit run app.py
 ```
 
-Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate diagram from content" in the sidebar to also try the Mermaid feature. Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available.
+Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate summary + diagrams" in the sidebar to also try that feature — each rendered diagram has real "Download SVG"/"Download PNG" buttons (client-side, via the browser, no server round-trip). Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available. There's also a "Your name" field to limit bulk push/export to your own tasks instead of the whole team's.
 
 **CLI — extraction only (LLM call #1, JSON to stdout, no DB):**
 
@@ -78,24 +78,24 @@ uv run python -m meetingpilot \
   --extract-only
 ```
 
-**CLI — full pipeline (ingest → extract → plan → SQLite), with screenshots + diagram synthesis:**
+**CLI — full pipeline (ingest → extract → plan → SQLite), with screenshots + summary/diagrams** (`samples/04_kanban_board.png` is a ready-made sample screenshot for trying this):
 
 ```bash
 uv run python -m meetingpilot \
   --transcript samples/01_sprint_planning.txt \
   --meeting-date 2026-08-19 \
   --title "Sprint planning" \
-  --screenshot path/to/whiteboard.png \
-  --diagram
+  --screenshot samples/04_kanban_board.png \
+  --summary
 ```
 
-**CLI — Calendar/Gmail dry-run payloads (no live Google calls):**
+**CLI — Calendar/Gmail/Tasks dry-run payloads (no live Google calls):**
 
 ```bash
 uv run python -m meetingpilot \
   --transcript samples/01_sprint_planning.txt \
   --meeting-date 2026-08-19 \
-  --push-calendar --push-gmail
+  --push-calendar --push-gmail --push-tasks
 ```
 
 **CLI — `.ics` export (no API keys, no network, no Google account):**
@@ -107,14 +107,15 @@ uv run python -m meetingpilot \
   --export-ics ./out
 ```
 
-**CLI — actually create a Calendar event / Gmail draft** (requires `credentials.json` + a one-time browser login):
+**CLI — actually create a Calendar event / Gmail draft / Google Task** (requires `credentials.json` + a one-time browser login):
 
 ```bash
 uv run python -m meetingpilot \
   --transcript samples/01_sprint_planning.txt \
   --meeting-date 2026-08-19 \
   --push-calendar --live-calendar \
-  --push-gmail --live-gmail
+  --push-gmail --live-gmail \
+  --push-tasks --live-tasks
 ```
 
 Paste mode: omit `--transcript` and pipe text on stdin. Full flag list: `uv run python -m meetingpilot --help`.
@@ -133,8 +134,8 @@ Equivalent with venv: `pytest -q`.
 
 ## Acknowledgments
 
-- [Google Gemini API](https://ai.google.dev/) — structured function calling for extraction, planning, and diagram synthesis (free tier via AI Studio)
-- [Google Calendar API](https://developers.google.com/calendar) and [Gmail API](https://developers.google.com/gmail/api) via `google-api-python-client` and `google-auth-oauthlib`
+- [Google Gemini API](https://ai.google.dev/) — structured function calling for extraction, planning, and the optional summary/diagram call (free tier via AI Studio)
+- [Google Calendar API](https://developers.google.com/calendar), [Gmail API](https://developers.google.com/gmail/api), and [Google Tasks API](https://developers.google.com/tasks) via `google-api-python-client` and `google-auth-oauthlib`
 - [Mermaid](https://mermaid.js.org/) for diagram rendering
 - [Streamlit](https://streamlit.io/), [Pydantic](https://docs.pydantic.dev/), [SQLAlchemy](https://www.sqlalchemy.org/), [python-dateutil](https://dateutil.readthedocs.io/)
 - [uv](https://docs.astral.sh/uv/) for Python environments

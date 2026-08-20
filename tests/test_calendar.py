@@ -65,3 +65,14 @@ def test_live_push_uses_mocked_service():
     assert result.event_id == "evt_mock_123"
     assert len(service._events.calls) == 1
     assert service._events.calls[0]["body"]["summary"] == "Draft the Q3 checkout roadmap"
+
+
+def test_push_item_forwards_custom_calendar_id():
+    """Regression: build_event_payload() accepted calendar_id, but push_item()
+    never forwarded it, so a custom target calendar was unreachable."""
+    service = FakeService()
+    result = push_item(
+        _item(), dry_run=False, calendar_service=service, calendar_id="demo@group.calendar.google.com"
+    )
+    assert result.payload["calendarId"] == "demo@group.calendar.google.com"
+    assert service._events.calls[0]["calendarId"] == "demo@group.calendar.google.com"
