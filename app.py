@@ -279,9 +279,14 @@ def main() -> None:
     with col_a:
         if st.button(f"Push all {len(bulk_items)} dated item(s){filter_note} to Calendar"):
             st.session_state["last_payloads"] = []
-            for item in bulk_items:
-                _do_push(item, dry_run=dry_run, calendar_id=calendar_id)
-            st.success(f"Processed {len(bulk_items)} calendar payload(s). dry-run={dry_run}")
+            succeeded = sum(
+                _do_push(item, dry_run=dry_run, calendar_id=calendar_id) for item in bulk_items
+            )
+            failed = len(bulk_items) - succeeded
+            if failed:
+                st.warning(f"{succeeded}/{len(bulk_items)} succeeded, {failed} failed (see errors above). dry-run={dry_run}")
+            else:
+                st.success(f"Processed {succeeded} calendar payload(s). dry-run={dry_run}")
     with col_b:
         st.download_button(
             f"Download {len(bulk_items)} dated item(s){filter_note} as one .ics",
@@ -352,30 +357,32 @@ def _render_mermaid(mermaid_code: str) -> None:
     )
 
 
-def _do_push(item, *, dry_run: bool, calendar_id: str | None = None) -> None:
+def _do_push(item, *, dry_run: bool, calendar_id: str | None = None) -> bool:
     try:
         result = push_item(item, dry_run=dry_run, calendar_id=calendar_id)
     except Exception as exc:  # noqa: BLE001
         st.error(str(exc))
-        return
+        return False
     st.session_state.setdefault("last_payloads", []).append(result.payload)
     if dry_run:
         st.caption("Dry-run: payload captured below — nothing was sent to Google.")
     else:
         st.success(f"Created calendar event {result.event_id}")
+    return True
 
 
-def _do_gmail_draft(item, *, dry_run: bool) -> None:
+def _do_gmail_draft(item, *, dry_run: bool) -> bool:
     try:
         result = create_draft(item, dry_run=dry_run)
     except Exception as exc:  # noqa: BLE001
         st.error(str(exc))
-        return
+        return False
     st.session_state.setdefault("last_gmail_drafts", []).append(result.mime_preview)
     if dry_run:
         st.caption("Dry-run: MIME content captured below — no draft was created, nothing was sent.")
     else:
         st.success(f"Created Gmail draft {result.draft_id} (draft only — not sent)")
+    return True
 
 
 if __name__ == "__main__":
