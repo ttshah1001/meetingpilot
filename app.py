@@ -24,6 +24,19 @@ SCREENSHOT_EXTENSIONS = tuple(SCREENSHOT_MIME_BY_EXTENSION)
 SAMPLES = PROJECT_ROOT / "samples"
 
 
+def _filter_by_owner(items: list, name: str) -> list:
+    """Bulk-action filter: only items whose owner/proposed owner matches
+    `name` (case-insensitive substring). Empty name = no filtering."""
+    if not name:
+        return items
+    needle = name.strip().lower()
+    return [
+        item
+        for item in items
+        if needle in (item.owner or "").lower() or needle in (item.proposed_owner or "").lower()
+    ]
+
+
 def _sample_names() -> list[str]:
     if not SAMPLES.exists():
         return []
@@ -57,6 +70,12 @@ def main() -> None:
         "process described in the transcript. Off by default — costs an extra call and not every meeting "
         "has anything diagram-worthy.",
     )
+    my_name_filter = st.sidebar.text_input(
+        "Your name (optional)",
+        help="If set, 'Push all to Calendar' and 'Download all as .ics' only include items owned by you "
+        "(matched case-insensitively against owner/proposed owner) — not your whole team's tasks. Per-item "
+        "buttons on individual cards are unaffected.",
+    ).strip()
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Open items from previous meetings")
@@ -245,30 +264,40 @@ def main() -> None:
                         )
 
     dated_items = [i for i in result.planned if i.due_date_iso or i.proposed_due_date_iso]
+    bulk_items = _filter_by_owner(dated_items, my_name_filter)
+    filter_note = f" owned by '{my_name_filter}'" if my_name_filter else ""
+
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button("Push all dated items to Calendar"):
-            for item in dated_items:
+        if st.button(f"Push all {len(bulk_items)} dated item(s){filter_note} to Calendar"):
+            st.session_state["last_payloads"] = []
+            for item in bulk_items:
                 _do_push(item, dry_run=dry_run)
-            st.success(f"Processed {len(dated_items)} calendar payload(s). dry-run={dry_run}")
+            st.success(f"Processed {len(bulk_items)} calendar payload(s). dry-run={dry_run}")
     with col_b:
         st.download_button(
-            f"Download all {len(dated_items)} dated item(s) as one .ics",
-            data=build_ics_bundle_bytes(result.planned),
+            f"Download {len(bulk_items)} dated item(s){filter_note} as one .ics",
+            data=build_ics_bundle_bytes(bulk_items),
             file_name=f"{result.title.lower().replace(' ', '-')}-action-items.ics",
             mime="text/calendar",
-            disabled=not dated_items,
+            disabled=not bulk_items,
         )
 
     payloads = st.session_state.get("last_payloads") or []
     if payloads:
         st.subheader("Calendar API payloads")
+        if st.button("Clear log", key="clear-calendar-log"):
+            st.session_state["last_payloads"] = []
+            st.rerun()
         for payload in payloads:
             st.code(json.dumps(payload, indent=2), language="json")
 
     drafts = st.session_state.get("last_gmail_drafts") or []
     if drafts:
         st.subheader("Gmail drafts (draft-only, never sent)")
+        if st.button("Clear log", key="clear-gmail-log"):
+            st.session_state["last_gmail_drafts"] = []
+            st.rerun()
         for preview in drafts:
             st.code(preview, language="text")
 
