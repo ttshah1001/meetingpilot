@@ -58,6 +58,14 @@ def main() -> None:
         value=True,
         help="Prints the exact Google Calendar API payload instead of creating events.",
     )
+    calendar_id = st.sidebar.text_input(
+        "Calendar ID for live pushes (optional)",
+        placeholder="primary",
+        help="Only matters when dry-run is off. Leave blank to push to your main calendar. Paste a "
+        "dedicated calendar's ID (Google Calendar → that calendar's Settings → 'Integrate calendar' → "
+        "Calendar ID) to keep test events separate from your real one — you can hide them with one "
+        "checkbox afterward instead of deleting each event by hand.",
+    ).strip() or None
     gmail_dry_run = st.sidebar.checkbox(
         "Gmail dry-run (recommended for demo)",
         value=True,
@@ -240,7 +248,7 @@ def main() -> None:
                         key=f"push-{owner}-{item.rank}-{hash(item.task)}",
                         disabled=not due,
                     ):
-                        _do_push(item, dry_run=dry_run)
+                        _do_push(item, dry_run=dry_run, calendar_id=calendar_id)
                 with col2:
                     if st.button(
                         "Draft Gmail",
@@ -272,7 +280,7 @@ def main() -> None:
         if st.button(f"Push all {len(bulk_items)} dated item(s){filter_note} to Calendar"):
             st.session_state["last_payloads"] = []
             for item in bulk_items:
-                _do_push(item, dry_run=dry_run)
+                _do_push(item, dry_run=dry_run, calendar_id=calendar_id)
             st.success(f"Processed {len(bulk_items)} calendar payload(s). dry-run={dry_run}")
     with col_b:
         st.download_button(
@@ -344,9 +352,9 @@ def _render_mermaid(mermaid_code: str) -> None:
     )
 
 
-def _do_push(item, *, dry_run: bool) -> None:
+def _do_push(item, *, dry_run: bool, calendar_id: str | None = None) -> None:
     try:
-        result = push_item(item, dry_run=dry_run)
+        result = push_item(item, dry_run=dry_run, calendar_id=calendar_id)
     except Exception as exc:  # noqa: BLE001
         st.error(str(exc))
         return

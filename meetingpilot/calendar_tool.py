@@ -55,9 +55,10 @@ def push_item(
     *,
     dry_run: bool = True,
     calendar_service=None,
+    calendar_id: Optional[str] = None,
 ) -> CalendarPushResult:
     """Create one all-day event, or print/return the payload in dry-run mode."""
-    payload = build_event_payload(item)
+    payload = build_event_payload(item, calendar_id=calendar_id)
     if dry_run:
         return CalendarPushResult(dry_run=True, payload=payload, event_id=None)
 
@@ -79,12 +80,18 @@ def push_items(
     *,
     dry_run: bool = True,
     calendar_service=None,
+    calendar_id: Optional[str] = None,
 ) -> list[CalendarPushResult]:
     results: list[CalendarPushResult] = []
     for item in items:
         if not item.resolved_due_date():
             continue
         results.append(
-            push_item(item, dry_run=dry_run, calendar_service=calendar_service)
+            push_item(
+                item,
+                dry_run=dry_run,
+                calendar_service=calendar_service,
+                calendar_id=calendar_id,
+            )
         )
     return results
