@@ -9,13 +9,15 @@ uv run python scripts/check_access.py   # confirms Gemini + Calendar + Gmail are
 rm -f meetings.db                       # fresh sidebar, no leftover demo state
 uv run streamlit run app.py
 ```
-`.env` needs `GEMINI_API_KEY` set. Leave **Calendar dry-run** and **Gmail dry-run** checked in the sidebar the whole time — a missing/expired Google login cannot kill the demo this way.
+`.env` needs `GEMINI_API_KEY` set. Leave **Calendar/Gmail/Tasks dry-run** checked (they're inside "⚙️ Testing & advanced options" in the sidebar) the whole time — a missing/expired Google login cannot kill the demo this way.
+
+There's no sample-transcript dropdown anymore — every sample transcript/screenshot has to be **uploaded** via the file uploader (drag the actual file in from `samples/`, or click to browse to it). Each uploaded file shows as a removable chip with an "×" — use that to clear a file before uploading the next one.
 
 ---
 
 ### 0:00–0:30 — Frame the product
 
-> "MeetingPilot is not a chatbot with a prompt. It's ingestion, two forced LLM calls — extraction, then planning — memory, and three tools: Calendar, Gmail, and offline `.ics` export. Everything runs on Google Gemini's free tier. I'll run a few sample meetings so you see state and multimodal input, not just a one-shot parse."
+> "MeetingPilot is not a chatbot with a prompt. It's ingestion, two forced LLM calls — extraction, then planning — memory, and four tools: Calendar, Gmail, Google Tasks, and offline `.ics` export. Everything runs on Google Gemini's free tier. I'll run a few sample meetings so you see state and multimodal input, not just a one-shot parse."
 
 Point at the `docs/ARCHITECTURE.md` diagram if it's on a slide; otherwise the sidebar + main form is enough.
 
@@ -45,7 +47,7 @@ Click **Download .ics** on one item — open the downloaded file if easy, or jus
 
 ### 1:45–2:45 — Memory + duplicates (sample 03)
 
-1. Load `samples/03_standup_followup.txt` (transcript only this time — clear the screenshot upload first).
+1. Remove the previous files (click "×" on each chip), then upload `samples/03_standup_followup.txt` (transcript only this time — no screenshot).
 2. Title: `Standup follow-up`. Date: `2026-08-20`.
 3. Click **Process Meeting**.
 
@@ -69,7 +71,7 @@ Click **Download .ics** on one item — open the downloaded file if easy, or jus
 
 ### 3:30–4:15 — Limitation (sample 02) — graders reward honesty
 
-1. Load `samples/02_design_review.vtt` (clear any screenshot upload).
+1. Remove the previous file(s), then upload `samples/02_design_review.vtt`.
 2. Title: `Design review`. Date: `2026-08-19`.
 3. Click **Process Meeting**.
 
@@ -85,7 +87,7 @@ Optional: point at the `.vtt` timestamps in the speaker-turns table — ingestio
 
 ### 4:15–4:45 — Close
 
-> "51 tests cover schema, date math, dedup, SQLite memory, Gemini's response parsing, and mocked Calendar/Gmail/.ics — `uv run pytest -q`. Everything ran live against the real Gemini API before this demo was written, including the multimodal and diagram paths. Live Calendar/Gmail push is documented in the README; we stayed on dry-run so nothing here depends on OAuth working in this room."
+> "69 tests cover schema, date math, dedup, SQLite memory, Gemini's response parsing, and mocked Calendar/Gmail/Tasks/.ics — `uv run pytest -q`. Everything ran live against the real Gemini API before this demo was written, including the multimodal, diagram, and chat-refinement paths. Live Calendar/Gmail/Tasks push is documented in the README; we stayed on dry-run so nothing here depends on OAuth working in this room."
 
 Stop. Do not start a fourth transcript unless there's real time left.
 

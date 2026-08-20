@@ -10,7 +10,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from meetingpilot.calendar_tool import push_item
-from meetingpilot.config import PROJECT_ROOT, get_settings
+from meetingpilot.config import get_settings
 from meetingpilot.gmail_tool import create_draft
 from meetingpilot.ics_export import build_ics_bundle_bytes, build_ics_bytes, ics_filename
 from meetingpilot.ingestion import ingest_text
@@ -23,9 +23,6 @@ from meetingpilot.tasks_tool import push_task
 TRANSCRIPT_EXTENSIONS = (".txt", ".vtt", ".srt")
 SCREENSHOT_EXTENSIONS = tuple(SCREENSHOT_MIME_BY_EXTENSION)
 
-SAMPLES = PROJECT_ROOT / "samples"
-
-
 def _filter_by_owner(items: list, name: str) -> list:
     """Bulk-action filter: only items whose owner/proposed owner matches
     `name` (case-insensitive substring). Empty name = no filtering."""
@@ -37,16 +34,6 @@ def _filter_by_owner(items: list, name: str) -> list:
         for item in items
         if needle in (item.owner or "").lower() or needle in (item.proposed_owner or "").lower()
     ]
-
-
-def _sample_names() -> list[str]:
-    if not SAMPLES.exists():
-        return []
-    return sorted(
-        p.name
-        for p in SAMPLES.iterdir()
-        if p.suffix.lower() in {".txt", ".vtt", ".srt"}
-    )
 
 
 def main() -> None:
@@ -135,7 +122,6 @@ def main() -> None:
 
     meeting_title = st.text_input("Meeting title", value="Weekly sync")
     meeting_date = st.date_input("Meeting date", value=date.today())
-    sample_choice = st.selectbox("Load a sample transcript", ["(none)"] + _sample_names())
     uploaded_files = st.file_uploader(
         "Drop transcript + screenshots (.txt/.vtt/.srt + .png/.jpg)",
         type=["txt", "vtt", "srt", "png", "jpg", "jpeg"],
@@ -161,10 +147,6 @@ def main() -> None:
     if transcript_files:
         transcript_text = transcript_files[0].getvalue().decode("utf-8")
         source_name = transcript_files[0].name
-    elif sample_choice != "(none)":
-        sample_path = SAMPLES / sample_choice
-        transcript_text = sample_path.read_text(encoding="utf-8")
-        source_name = sample_choice
 
     if screenshot_files:
         st.caption(f"{len(screenshot_files)} screenshot(s) attached: " + ", ".join(f.name for f in screenshot_files))
