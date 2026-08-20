@@ -15,7 +15,7 @@ from meetingpilot.memory import (
     list_open_items,
     save_meeting,
 )
-from meetingpilot.models import PipelineResult, PlannedItem, TranscriptDocument
+from meetingpilot.models import ItemSource, PipelineResult, PlannedItem, Screenshot, TranscriptDocument
 from meetingpilot.planning import plan_action_items, task_similarity
 
 
@@ -50,8 +50,9 @@ def process_meeting(
     persist: bool = True,
     db_path: Optional[str] = None,
     default_owner: Optional[str] = None,
+    screenshots: Optional[list[Screenshot]] = None,
 ) -> PipelineResult:
-    extracted = extract_action_items(document, meeting_date)
+    extracted = extract_action_items(document, meeting_date, screenshots=screenshots)
     planned = plan_action_items(extracted, meeting_date, default_owner=default_owner)
 
     owners = [p.owner for p in planned if p.owner]
@@ -91,6 +92,7 @@ def process_path(
     title: Optional[str] = None,
     persist: bool = True,
     db_path: Optional[str] = None,
+    screenshots: Optional[list[Screenshot]] = None,
 ) -> PipelineResult:
     document = ingest_file(path)
     return process_meeting(
@@ -99,6 +101,7 @@ def process_path(
         title=title,
         persist=persist,
         db_path=db_path,
+        screenshots=screenshots,
     )
 
 
@@ -110,6 +113,7 @@ def process_pasted_text(
     title: Optional[str] = None,
     persist: bool = True,
     db_path: Optional[str] = None,
+    screenshots: Optional[list[Screenshot]] = None,
 ) -> PipelineResult:
     document = ingest_text(text, source_name=source_name)
     return process_meeting(
@@ -118,6 +122,7 @@ def process_pasted_text(
         title=title,
         persist=persist,
         db_path=db_path,
+        screenshots=screenshots,
     )
 
 
@@ -135,6 +140,7 @@ def stored_items_as_planned(meeting_id: int, db_path: Optional[str] = None) -> l
                 source_quote=row.source_quote,
                 confidence=row.confidence,
                 planning_notes=row.planning_notes,
+                source=ItemSource(row.source),
             )
         )
     return items
@@ -142,7 +148,7 @@ def stored_items_as_planned(meeting_id: int, db_path: Optional[str] = None) -> l
 
 def require_api_key() -> None:
     settings = get_settings()
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key."
+            "GEMINI_API_KEY is not set. Copy .env.example to .env and add your key."
         )

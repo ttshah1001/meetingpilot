@@ -64,16 +64,17 @@ transcript .txt/.vtt/.srt/paste
    pip install -e ".[dev]"
    ```
 
-3. **LLM API key (required for extraction + planning).** MeetingPilot uses the Anthropic API with forced tool calling (structured JSON), not free-text parsing.
+3. **LLM API key (required for extraction + planning).** MeetingPilot uses the Google Gemini API (free tier, AI Studio) with forced function calling (structured JSON), not free-text parsing.
 
-   - Create an API key at [https://console.anthropic.com/](https://console.anthropic.com/).
+   - Create a free API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) — no credit card required.
    - Copy the example env file and paste the key:
 
      ```bash
      cp .env.example .env
      ```
 
-   - Set `ANTHROPIC_API_KEY=sk-ant-...` inside `.env`. Optionally override `ANTHROPIC_MODEL` (default `claude-sonnet-4-20250514`).
+   - Set `GEMINI_API_KEY=...` inside `.env`. Optionally override `GEMINI_MODEL` (default `gemini-3.6-flash`).
+   - Legacy: `ANTHROPIC_API_KEY` still exists in config for a fallback/comparison path, but `meetingpilot/llm.py` calls Gemini — the Anthropic key isn't used by the app itself anymore.
 
 4. **Google Calendar OAuth (optional — skip if you will demo with `--dry-run`).**
 
@@ -179,7 +180,7 @@ After extraction, **relative dates are resolved in Python** against the meeting 
 
 ## Acknowledgments
 
-- [Anthropic Claude API](https://docs.anthropic.com/) — structured tool calling for extraction and planning
+- [Google Gemini API](https://ai.google.dev/) — structured function calling for extraction and planning (free tier via AI Studio)
 - [Google Calendar API](https://developers.google.com/calendar) via `google-api-python-client` and `google-auth-oauthlib`
 - [Streamlit](https://streamlit.io/), [Pydantic](https://docs.pydantic.dev/), [SQLAlchemy](https://www.sqlalchemy.org/), [python-dateutil](https://dateutil.readthedocs.io/)
 - [uv](https://docs.astral.sh/uv/) for Python environments

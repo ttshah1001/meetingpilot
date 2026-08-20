@@ -11,6 +11,7 @@ from pathlib import Path
 from meetingpilot.calendar_tool import push_items
 from meetingpilot.extraction import extract_action_items
 from meetingpilot.ingestion import ingest_file, ingest_text
+from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
 
 
@@ -35,6 +36,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="ISO date of the meeting (default: today). Used to resolve 'Friday', etc.",
     )
     parser.add_argument("--title", help="Optional meeting title stored in memory.")
+    parser.add_argument(
+        "--screenshot",
+        "-s",
+        action="append",
+        default=[],
+        dest="screenshots",
+        help="Path to a .png/.jpg screenshot to extract alongside the transcript. Repeatable.",
+    )
     parser.add_argument(
         "--extract-only",
         action="store_true",
@@ -76,8 +85,22 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         document = ingest_text(raw, source_name="stdin.txt")
 
+    screenshots = []
+    for path in args.screenshots:
+        shot_path = Path(path)
+        if not shot_path.exists():
+            print(f"Screenshot not found: {path}", file=sys.stderr)
+            return 2
+        screenshots.append(
+            Screenshot(
+                name=shot_path.name,
+                mime_type=SCREENSHOT_MIME_BY_EXTENSION.get(shot_path.suffix.lower(), "image/png"),
+                data=shot_path.read_bytes(),
+            )
+        )
+
     if args.extract_only:
-        items = extract_action_items(document, args.meeting_date)
+        items = extract_action_items(document, args.meeting_date, screenshots=screenshots or None)
         print(json.dumps([item.model_dump() for item in items], indent=2))
         return 0
 
@@ -86,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         meeting_date=args.meeting_date,
         title=args.title or Path(args.transcript).stem if args.transcript else "stdin",
         persist=not args.no_save,
+        screenshots=screenshots or None,
     )
     print(json.dumps(result.to_console_dict(), indent=2, default=str))
 

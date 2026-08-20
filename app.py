@@ -12,7 +12,11 @@ from meetingpilot.calendar_tool import push_item
 from meetingpilot.config import PROJECT_ROOT, get_settings
 from meetingpilot.ingestion import ingest_text
 from meetingpilot.memory import list_open_items
+from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
+
+TRANSCRIPT_EXTENSIONS = (".txt", ".vtt", ".srt")
+SCREENSHOT_EXTENSIONS = tuple(SCREENSHOT_MIME_BY_EXTENSION)
 
 SAMPLES = PROJECT_ROOT / "samples"
 
@@ -60,33 +64,67 @@ def main() -> None:
     meeting_title = st.text_input("Meeting title", value="Weekly sync")
     meeting_date = st.date_input("Meeting date", value=date.today())
     sample_choice = st.selectbox("Load a sample transcript", ["(none)"] + _sample_names())
-    uploaded = st.file_uploader("Upload transcript (.txt, .vtt, .srt)", type=["txt", "vtt", "srt"])
+    uploaded_files = st.file_uploader(
+        "Drop transcript + screenshots (.txt/.vtt/.srt + .png/.jpg)",
+        type=["txt", "vtt", "srt", "png", "jpg", "jpeg"],
+        accept_multiple_files=True,
+    )
     pasted = st.text_area("…or paste transcript text", height=220)
+
+    transcript_files = [
+        f for f in uploaded_files if Path(f.name).suffix.lower() in TRANSCRIPT_EXTENSIONS
+    ]
+    screenshot_files = [
+        f for f in uploaded_files if Path(f.name).suffix.lower() in SCREENSHOT_EXTENSIONS
+    ]
+    if len(transcript_files) > 1:
+        st.error(
+            f"Got {len(transcript_files)} transcript files "
+            f"({', '.join(f.name for f in transcript_files)}) — drop only one at a time."
+        )
+        st.stop()
 
     transcript_text = pasted
     source_name = "pasted.txt"
-    if uploaded is not None:
-        transcript_text = uploaded.getvalue().decode("utf-8")
-        source_name = uploaded.name
+    if transcript_files:
+        transcript_text = transcript_files[0].getvalue().decode("utf-8")
+        source_name = transcript_files[0].name
     elif sample_choice != "(none)":
         sample_path = SAMPLES / sample_choice
         transcript_text = sample_path.read_text(encoding="utf-8")
         source_name = sample_choice
 
+    if screenshot_files:
+        st.caption(f"{len(screenshot_files)} screenshot(s) attached: " + ", ".join(f.name for f in screenshot_files))
+
     if st.button("Process Meeting", type="primary", disabled=not (transcript_text or "").strip()):
-        if not settings.anthropic_api_key:
+        if not settings.gemini_api_key:
             st.error(
-                "ANTHROPIC_API_KEY is missing. Copy `.env.example` to `.env` and add your key."
+                "GEMINI_API_KEY is missing. Copy `.env.example` to `.env` and add your key."
             )
             st.stop()
         fmt = {".vtt": "vtt", ".srt": "srt"}.get(Path(source_name).suffix.lower())
         document = ingest_text(transcript_text, source_name=source_name, fmt=fmt)
-        with st.spinner("Extraction (LLM #1), then planning (LLM #2)…"):
+        screenshots = [
+            Screenshot(
+                name=f.name,
+                mime_type=SCREENSHOT_MIME_BY_EXTENSION[Path(f.name).suffix.lower()],
+                data=f.getvalue(),
+            )
+            for f in screenshot_files
+        ]
+        spinner_text = (
+            f"Extraction (LLM #1, reading transcript + {len(screenshots)} screenshot(s)), then planning (LLM #2)…"
+            if screenshots
+            else "Extraction (LLM #1), then planning (LLM #2)…"
+        )
+        with st.spinner(spinner_text):
             st.session_state["result"] = process_meeting(
                 document=document,
                 meeting_date=meeting_date,
                 title=meeting_title,
                 persist=True,
+                screenshots=screenshots or None,
             )
             st.session_state["last_payloads"] = []
 
@@ -122,9 +160,10 @@ def main() -> None:
             if item.missing_due_date:
                 flags.append("missing date")
             flag_text = f" · {' · '.join(flags)}" if flags else ""
+            source_icon = "🖼️ screenshot" if item.source.value == "screenshot" else "📝 transcript"
             header = (
                 f"#{item.rank} {item.task} — {item.priority.value} · "
-                f"{item.confidence:.0%}{flag_text}"
+                f"{item.confidence:.0%} · {source_icon}{flag_text}"
             )
             with st.expander(header):
                 st.write(

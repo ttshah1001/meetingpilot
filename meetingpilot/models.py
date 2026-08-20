@@ -34,11 +34,31 @@ class SpeakerTurn(BaseModel):
         return f"{self.index}. {ts}{self.speaker}: {self.text}"
 
 
+SCREENSHOT_MIME_BY_EXTENSION = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
+
+class Screenshot(BaseModel):
+    """One image (slide, whiteboard, Kanban board) uploaded alongside the transcript."""
+
+    name: str
+    mime_type: str
+    data: bytes
+
+
 class TranscriptDocument(BaseModel):
     source_name: str
     raw_text: str
     turns: list[SpeakerTurn]
     format: str = "txt"
+
+
+class ItemSource(str, Enum):
+    transcript = "transcript"
+    screenshot = "screenshot"
 
 
 class ExtractedItem(BaseModel):
@@ -51,6 +71,7 @@ class ExtractedItem(BaseModel):
     priority: Priority = Priority.medium
     source_quote: str
     confidence: float = Field(ge=0.0, le=1.0)
+    source: ItemSource = ItemSource.transcript
 
     @field_validator("owner", mode="before")
     @classmethod
