@@ -12,6 +12,7 @@ import streamlit.components.v1 as components
 from meetingpilot.calendar_tool import push_item
 from meetingpilot.config import PROJECT_ROOT, get_settings
 from meetingpilot.gmail_tool import create_draft
+from meetingpilot.ics_export import build_ics_bundle_bytes, build_ics_bytes, ics_filename
 from meetingpilot.ingestion import ingest_text
 from meetingpilot.memory import list_open_items
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
@@ -213,7 +214,7 @@ def main() -> None:
                 if item.planning_notes:
                     st.caption(item.planning_notes)
                 due = item.due_date_iso or item.proposed_due_date_iso
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     if st.button(
                         "Push to Calendar",
@@ -227,12 +228,37 @@ def main() -> None:
                         key=f"gmail-{owner}-{item.rank}-{hash(item.task)}",
                     ):
                         _do_gmail_draft(item, dry_run=gmail_dry_run)
+                with col3:
+                    if due:
+                        st.download_button(
+                            "Download .ics",
+                            data=build_ics_bytes(item),
+                            file_name=ics_filename(item),
+                            mime="text/calendar",
+                            key=f"ics-{owner}-{item.rank}-{hash(item.task)}",
+                        )
+                    else:
+                        st.button(
+                            "Download .ics",
+                            disabled=True,
+                            key=f"ics-disabled-{owner}-{item.rank}-{hash(item.task)}",
+                        )
 
-    if st.button("Push all dated items to Calendar"):
-        dated = [i for i in result.planned if i.due_date_iso or i.proposed_due_date_iso]
-        for item in dated:
-            _do_push(item, dry_run=dry_run)
-        st.success(f"Processed {len(dated)} calendar payload(s). dry-run={dry_run}")
+    dated_items = [i for i in result.planned if i.due_date_iso or i.proposed_due_date_iso]
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("Push all dated items to Calendar"):
+            for item in dated_items:
+                _do_push(item, dry_run=dry_run)
+            st.success(f"Processed {len(dated_items)} calendar payload(s). dry-run={dry_run}")
+    with col_b:
+        st.download_button(
+            f"Download all {len(dated_items)} dated item(s) as one .ics",
+            data=build_ics_bundle_bytes(result.planned),
+            file_name=f"{result.title.lower().replace(' ', '-')}-action-items.ics",
+            mime="text/calendar",
+            disabled=not dated_items,
+        )
 
     payloads = st.session_state.get("last_payloads") or []
     if payloads:

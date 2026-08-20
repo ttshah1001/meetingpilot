@@ -11,6 +11,7 @@ from pathlib import Path
 from meetingpilot.calendar_tool import push_items
 from meetingpilot.extraction import extract_action_items
 from meetingpilot.gmail_tool import create_drafts
+from meetingpilot.ics_export import write_ics_files
 from meetingpilot.ingestion import ingest_file, ingest_text
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
@@ -85,6 +86,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--live-gmail",
         action="store_true",
         help="Disable dry-run when used with --push-gmail. Still only creates drafts, never sends.",
+    )
+    parser.add_argument(
+        "--export-ics",
+        metavar="DIR",
+        help="Write one .ics file per dated item into DIR. No API keys or network required.",
     )
     return parser
 
@@ -167,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
+
+    if args.export_ics:
+        written = write_ics_files(result.planned, args.export_ics)
+        print(json.dumps({"ics_files": written}, indent=2))
     return 0
 
 

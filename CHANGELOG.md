@@ -4,8 +4,19 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
-- `.ics` file export (no OAuth, live-demo fallback if Google auth/wifi fails) — planned, not yet built.
 - Transcript chunking for long meetings — planned, not yet built.
+
+## [0.4.0] - 2026-08-20
+
+### Added
+- `.ics` file export (`meetingpilot/ics_export.py`, `icalendar`) — no OAuth, no network, live-demo fallback if Google auth/wifi fails. One file per dated item, plus a single-bundle option. `--export-ics DIR` CLI flag; per-item and "download all" buttons in Streamlit (`st.download_button`, no OAuth popup).
+- Tests: `tests/test_ics_export.py`, including real `icalendar` round-trip parsing (not just "didn't crash").
+
+### Changed
+- Factored the shared event/draft description-text logic out of `calendar_tool.py` into `PlannedItem.description_text()`/`.resolved_due_date()` (`models.py`), so Calendar, Gmail, and `.ics` all build consistent descriptions instead of duplicating the same formatting three times.
+
+### Fixed
+- **Corrected an earlier (0.2.0) note**: both `gemini-3.5-flash` and `gemini-3.6-flash` share the same 20-requests/day free-tier quota per API key — not just 3.5-flash as first assumed. Hit it for real during this release's testing. This is a genuine demo-day risk (roughly 10 full meeting-processing runs per day per key); mitigations documented in `docs/ARCHITECTURE.md`.
 
 ## [0.3.0] - 2026-08-20
 
