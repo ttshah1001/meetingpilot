@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
 
 from meetingpilot.config import get_settings
-from meetingpilot.models import OpenMemoryItem, PlannedItem, Priority
+from meetingpilot.models import ItemSource, OpenMemoryItem, PlannedItem, Priority
 
 
 class Base(DeclarativeBase):
@@ -55,6 +55,7 @@ class ActionItemRecord(Base):
     status: Mapped[str] = mapped_column(String(32), default="open")
     calendar_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     planning_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default="transcript")
 
     meeting: Mapped[MeetingRecord] = relationship(back_populates="items")
 
@@ -102,6 +103,7 @@ def save_meeting(
                     confidence=item.confidence,
                     status="open",
                     planning_notes=item.planning_notes,
+                    source=item.source.value,
                 )
             )
         session.add(meeting)

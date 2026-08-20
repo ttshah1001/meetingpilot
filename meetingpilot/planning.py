@@ -35,6 +35,7 @@ PLAN_SCHEMA: dict[str, Any] = {
                     "priority",
                     "source_quote",
                     "confidence",
+                    "source",
                     "missing_owner",
                     "missing_due_date",
                     "proposed_owner",
@@ -50,6 +51,7 @@ PLAN_SCHEMA: dict[str, Any] = {
                     "priority": {"type": "string", "enum": ["high", "medium", "low"]},
                     "source_quote": {"type": "string"},
                     "confidence": {"type": "number"},
+                    "source": {"type": "string", "enum": ["transcript", "screenshot"]},
                     "missing_owner": {"type": "boolean"},
                     "missing_due_date": {"type": "boolean"},
                     "proposed_owner": {"type": ["string", "null"]},
@@ -79,6 +81,8 @@ Your job:
 3) Rank remaining items (1 = highest urgency) using priority, due date, and confidence.
 Call submit_planned_items. Keep source_quote from the strongest original item.
 When merging, put extra quotes in merged_from_quotes.
+Preserve each item's `source` field ("transcript" or "screenshot") unchanged; if
+merging a transcript item with a screenshot item, keep "transcript".
 """
 
 _STOP = {
@@ -230,6 +234,18 @@ def plan_action_items(
         input_schema=PLAN_SCHEMA,
     )
     planned = validate_plan_payload(payload)
+    # `source` is set deterministically by the extraction layer, not the
+    # planning LLM — trust the locally-tracked value (matched by quote)
+    # over whatever the model echoed back, in case it drifts or gets
+    # merged away.
+    screenshot_quotes = {item.source_quote for item in local if item.source == item.source.screenshot}
+
+    def _resolved_source(item: PlannedItem):
+        quotes = {item.source_quote, *item.merged_from_quotes}
+        if quotes & screenshot_quotes and item.source_quote in screenshot_quotes:
+            return item.source.screenshot
+        return item.source.transcript
+
     # Re-apply rank + needs_review so local policy always wins on those fields.
     return rank_items(
         [
@@ -241,6 +257,7 @@ def plan_action_items(
                     or item.due_date_iso is None,
                     "missing_owner": item.owner is None,
                     "missing_due_date": item.due_date_iso is None,
+                    "source": _resolved_source(item),
                 }
             )
             for item in planned

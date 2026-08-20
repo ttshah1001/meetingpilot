@@ -26,6 +26,8 @@ def _path_from_env(key: str, default: str) -> Path:
 class Settings:
     anthropic_api_key: str
     anthropic_model: str
+    gemini_api_key: str
+    gemini_model: str
     db_path: Path
     google_credentials_path: Path
     google_token_path: Path
@@ -35,9 +37,12 @@ class Settings:
 
 def get_settings() -> Settings:
     key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     return Settings(
         anthropic_api_key=key,
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        gemini_api_key=gemini_key,
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
         db_path=_path_from_env("MEETINGPILOT_DB", "meetings.db"),
         google_credentials_path=_path_from_env(
             "GOOGLE_CREDENTIALS_PATH", "credentials.json"

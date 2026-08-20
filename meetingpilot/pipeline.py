@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from meetingpilot.config import get_settings
+from meetingpilot.diagram import generate_diagram
 from meetingpilot.extraction import extract_action_items
 from meetingpilot.ingestion import ingest_file, ingest_text
 from meetingpilot.memory import (
@@ -15,7 +16,7 @@ from meetingpilot.memory import (
     list_open_items,
     save_meeting,
 )
-from meetingpilot.models import PipelineResult, PlannedItem, TranscriptDocument
+from meetingpilot.models import ItemSource, PipelineResult, PlannedItem, Screenshot, TranscriptDocument
 from meetingpilot.planning import plan_action_items, task_similarity
 
 
@@ -50,9 +51,15 @@ def process_meeting(
     persist: bool = True,
     db_path: Optional[str] = None,
     default_owner: Optional[str] = None,
+    screenshots: Optional[list[Screenshot]] = None,
+    generate_diagram_from_content: bool = False,
 ) -> PipelineResult:
-    extracted = extract_action_items(document, meeting_date)
+    extracted = extract_action_items(document, meeting_date, screenshots=screenshots)
     planned = plan_action_items(extracted, meeting_date, default_owner=default_owner)
+
+    diagram = None
+    if generate_diagram_from_content:
+        diagram = generate_diagram(document, screenshots=screenshots)
 
     owners = [p.owner for p in planned if p.owner]
     previous = list_open_for_owners(owners, db_path=db_path) if persist else []
@@ -81,6 +88,7 @@ def process_meeting(
         extracted=extracted,
         planned=planned,
         open_from_previous=previous,
+        diagram=diagram,
     )
 
 
@@ -91,6 +99,8 @@ def process_path(
     title: Optional[str] = None,
     persist: bool = True,
     db_path: Optional[str] = None,
+    screenshots: Optional[list[Screenshot]] = None,
+    generate_diagram_from_content: bool = False,
 ) -> PipelineResult:
     document = ingest_file(path)
     return process_meeting(
@@ -99,6 +109,8 @@ def process_path(
         title=title,
         persist=persist,
         db_path=db_path,
+        screenshots=screenshots,
+        generate_diagram_from_content=generate_diagram_from_content,
     )
 
 
@@ -110,6 +122,8 @@ def process_pasted_text(
     title: Optional[str] = None,
     persist: bool = True,
     db_path: Optional[str] = None,
+    screenshots: Optional[list[Screenshot]] = None,
+    generate_diagram_from_content: bool = False,
 ) -> PipelineResult:
     document = ingest_text(text, source_name=source_name)
     return process_meeting(
@@ -118,6 +132,8 @@ def process_pasted_text(
         title=title,
         persist=persist,
         db_path=db_path,
+        screenshots=screenshots,
+        generate_diagram_from_content=generate_diagram_from_content,
     )
 
 
@@ -135,6 +151,7 @@ def stored_items_as_planned(meeting_id: int, db_path: Optional[str] = None) -> l
                 source_quote=row.source_quote,
                 confidence=row.confidence,
                 planning_notes=row.planning_notes,
+                source=ItemSource(row.source),
             )
         )
     return items
@@ -142,7 +159,7 @@ def stored_items_as_planned(meeting_id: int, db_path: Optional[str] = None) -> l
 
 def require_api_key() -> None:
     settings = get_settings()
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key."
+            "GEMINI_API_KEY is not set. Copy .env.example to .env and add your key."
         )

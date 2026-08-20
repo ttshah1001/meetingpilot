@@ -1,17 +1,56 @@
-"""Thin Anthropic client wrapper. Both LLM layers use this module."""
+"""Thin Gemini client wrapper. Both LLM layers use this module."""
 
 from __future__ import annotations
 
-import json
+import time
 from typing import Any
 
-from anthropic import Anthropic
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types
 
 from meetingpilot.config import get_settings
+
+RETRYABLE_STATUS_CODES = {503, 429}
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 2.0
 
 
 class LLMError(RuntimeError):
     """Raised when the model does not return a usable tool call."""
+
+
+def _to_gemini_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Convert a JSON Schema dict to Gemini's OpenAPI-subset Schema shape.
+
+    Differences that matter here:
+    - No `additionalProperties` support — dropped.
+    - Nullable fields use JSON Schema's `type: [X, "null"]`; Gemini wants
+      `type: X` plus a separate `nullable: true`.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    out: dict[str, Any] = {}
+    type_value = schema.get("type")
+    if isinstance(type_value, list):
+        non_null = [t for t in type_value if t != "null"]
+        out["type"] = non_null[0] if non_null else "string"
+        if "null" in type_value:
+            out["nullable"] = True
+    elif type_value is not None:
+        out["type"] = type_value
+
+    for key in ("description", "enum", "minimum", "maximum", "required"):
+        if key in schema:
+            out[key] = schema[key]
+
+    if "properties" in schema:
+        out["properties"] = {k: _to_gemini_schema(v) for k, v in schema["properties"].items()}
+    if "items" in schema:
+        out["items"] = _to_gemini_schema(schema["items"])
+
+    return out
 
 
 def call_tool(
@@ -21,38 +60,79 @@ def call_tool(
     tool_name: str,
     tool_description: str,
     input_schema: dict[str, Any],
-    max_tokens: int = 4096,
+    images: list[tuple[bytes, str]] | None = None,
+    max_tokens: int = 8192,
 ) -> dict[str, Any]:
-    """Force a structured tool call and return the tool input JSON."""
+    """Force a structured tool call and return the tool input JSON.
+
+    `images` is an optional list of (raw_bytes, mime_type) pairs, sent as
+    real image content blocks alongside the text — used by the multimodal
+    extraction call for screenshots.
+    """
     settings = get_settings()
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         raise LLMError(
-            "ANTHROPIC_API_KEY is missing. Copy .env.example to .env and add a key."
+            "GEMINI_API_KEY is missing. Copy .env.example to .env and add a key."
         )
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    response = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=max_tokens,
-        system=system,
-        tools=[
-            {
-                "name": tool_name,
-                "description": tool_description,
-                "input_schema": input_schema,
-            }
-        ],
-        tool_choice={"type": "tool", "name": tool_name},
-        messages=[{"role": "user", "content": user}],
+    client = genai.Client(api_key=settings.gemini_api_key)
+    function_declaration = types.FunctionDeclaration(
+        name=tool_name,
+        description=tool_description,
+        parameters=_to_gemini_schema(input_schema),
+    )
+    tool = types.Tool(function_declarations=[function_declaration])
+
+    contents: Any = user
+    if images:
+        contents = [user] + [
+            types.Part.from_bytes(data=data, mime_type=mime_type) for data, mime_type in images
+        ]
+
+    config = types.GenerateContentConfig(
+        system_instruction=system,
+        max_output_tokens=max_tokens,
+        tools=[tool],
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(
+                mode="ANY",
+                allowed_function_names=[tool_name],
+            )
+        ),
     )
 
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
-            payload = block.input
-            if isinstance(payload, str):
-                payload = json.loads(payload)
-            if not isinstance(payload, dict):
-                raise LLMError("Tool payload was not a JSON object.")
-            return payload
+    # Gemini's free tier returns transient 503 (overloaded) / 429 (rate
+    # limit) fairly often — retry a few times with backoff rather than
+    # letting one blip fail a live demo. Also retry when a *successful*
+    # response is missing the tool call: observed in practice on large
+    # multi-item planning payloads, most likely truncation before the
+    # function call args finished — not an HTTP error, so it needs its
+    # own retry path, not just the APIError one below.
+    last_finish_reason = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = client.models.generate_content(
+                model=settings.gemini_model, contents=contents, config=config
+            )
+        except genai_errors.APIError as exc:
+            status = getattr(exc, "code", None)
+            if status not in RETRYABLE_STATUS_CODES or attempt == MAX_RETRIES - 1:
+                raise
+            time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+            continue
 
-    raise LLMError("Model response did not include the required tool call.")
+        for candidate in response.candidates or []:
+            parts = candidate.content.parts if candidate.content else None
+            for part in parts or []:
+                fn_call = getattr(part, "function_call", None)
+                if fn_call and fn_call.name == tool_name:
+                    return dict(fn_call.args) if fn_call.args else {}
+            last_finish_reason = getattr(candidate, "finish_reason", None)
+
+        if attempt < MAX_RETRIES - 1:
+            time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+
+    raise LLMError(
+        "Model response did not include the required tool call "
+        f"after {MAX_RETRIES} attempts (last finish_reason: {last_finish_reason})."
+    )

@@ -1,10 +1,11 @@
 [project]
 name = "meetingpilot"
-version = "0.1.0"
+version = "0.3.0"
 description = "LLM agent that turns meeting transcripts into tracked, calendared action items."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "google-genai>=0.3.0",
     "anthropic>=0.40.0",
     "python-dotenv>=1.0.1",
     "sqlalchemy>=2.0.36",

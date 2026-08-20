@@ -34,11 +34,31 @@ class SpeakerTurn(BaseModel):
         return f"{self.index}. {ts}{self.speaker}: {self.text}"
 
 
+SCREENSHOT_MIME_BY_EXTENSION = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
+
+class Screenshot(BaseModel):
+    """One image (slide, whiteboard, Kanban board) uploaded alongside the transcript."""
+
+    name: str
+    mime_type: str
+    data: bytes
+
+
 class TranscriptDocument(BaseModel):
     source_name: str
     raw_text: str
     turns: list[SpeakerTurn]
     format: str = "txt"
+
+
+class ItemSource(str, Enum):
+    transcript = "transcript"
+    screenshot = "screenshot"
 
 
 class ExtractedItem(BaseModel):
@@ -51,6 +71,7 @@ class ExtractedItem(BaseModel):
     priority: Priority = Priority.medium
     source_quote: str
     confidence: float = Field(ge=0.0, le=1.0)
+    source: ItemSource = ItemSource.transcript
 
     @field_validator("owner", mode="before")
     @classmethod
@@ -102,6 +123,14 @@ class PlannedItemList(BaseModel):
     items: list[PlannedItem]
 
 
+class DiagramResult(BaseModel):
+    """Output of the optional diagram-synthesis LLM call."""
+
+    has_diagram: bool
+    title: str | None = None
+    mermaid_code: str | None = None
+
+
 class OpenMemoryItem(BaseModel):
     id: int
     meeting_id: int
@@ -122,6 +151,7 @@ class PipelineResult(BaseModel):
     extracted: list[ExtractedItem]
     planned: list[PlannedItem]
     open_from_previous: list[OpenMemoryItem] = Field(default_factory=list)
+    diagram: DiagramResult | None = None
 
     def to_console_dict(self) -> dict[str, Any]:
         return {
@@ -132,6 +162,7 @@ class PipelineResult(BaseModel):
             "extracted": [item.model_dump() for item in self.extracted],
             "planned": [item.model_dump() for item in self.planned],
             "open_from_previous": [item.model_dump() for item in self.open_from_previous],
+            "diagram": self.diagram.model_dump() if self.diagram else None,
         }
 
 
