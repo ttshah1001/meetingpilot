@@ -51,8 +51,14 @@ def _sample_names() -> list[str]:
 
 def main() -> None:
     st.set_page_config(page_title="MeetingPilot", layout="wide")
+    _inject_theme_css()
     st.title("MeetingPilot")
-    st.caption("Transcript → action items → memory → calendar")
+    st.markdown(
+        '<p style="font-style: italic; color: #5C3D2E; font-size: 1.1rem; margin-top: -8px;">'
+        "From transcript to clarity — tasks, summaries, and diagrams, automatically."
+        "</p>",
+        unsafe_allow_html=True,
+    )
 
     settings = get_settings()
 
@@ -381,11 +387,18 @@ def main() -> None:
             "from scratch."
         )
         chat_history = st.session_state.setdefault("summary_chat_history", [])
-        for msg in chat_history:
-            with st.chat_message(msg["role"]):
-                st.write(msg["content"])
-
-        feedback = st.chat_input("Ask for a change to the summary or diagrams…")
+        chat_box = st.container(height=360, border=True)
+        with chat_box:
+            if not chat_history:
+                st.caption("No messages yet — ask for a change below.")
+            for msg in chat_history:
+                _render_chat_bubble(msg["role"], msg["content"])
+            # Placed inside this fixed-height container so it pins to the
+            # bottom of the *chat box*, not the whole page — otherwise
+            # st.chat_input floats to the absolute page bottom regardless
+            # of where it's called, ending up visually below unrelated
+            # content (e.g. the speaker-turns table) rendered after it.
+            feedback = st.chat_input("Ask for a change to the summary or diagrams…")
         if feedback:
             chat_history.append({"role": "user", "content": feedback})
             last_document = st.session_state.get("last_document")
@@ -511,6 +524,115 @@ def _slugify(text: str) -> str:
 
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return slug or "diagram"
+
+
+def _render_chat_bubble(role: str, content: str) -> None:
+    """Custom-styled chat bubble, not relying on Streamlit's internal
+    st.chat_message DOM structure (which varies by version) for the
+    user-vs-assistant color distinction — this guarantees it regardless."""
+    is_user = role == "user"
+    bg = "#F0C9A8" if is_user else "#FDF8EE"
+    label = "You" if is_user else "MeetingPilot"
+    align = "flex-end" if is_user else "flex-start"
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:{align}; margin-bottom:10px;">
+            <div style="max-width:85%; background-color:{bg}; border:1px solid #D4B896;
+                        border-radius:12px; padding:10px 14px;">
+                <div style="font-size:0.75rem; font-weight:600; color:#5C3D2E; margin-bottom:4px;">
+                    {label}
+                </div>
+                <div style="color:#2C1810;">{content}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _inject_theme_css() -> None:
+    st.markdown(
+        """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+        html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+        h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif !important; color: #2C1810 !important; }
+        code, pre, [data-testid="stCodeBlock"] * { font-family: 'DM Mono', monospace !important; }
+
+        /* Streamlit reserves a large top margin above the content by
+        default -- pull it up so the title isn't floating in empty space. */
+        .block-container { padding-top: 1.5rem !important; }
+        [data-testid="stSidebar"] .block-container { padding-top: 1.5rem !important; }
+
+        /* App-generated / displayed content text — bigger and more readable
+        (separate from the input-field font-size rule below, which covers
+        what the user types). Covers summary text, action item bodies,
+        expander headers, captions, chat bubble text. */
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMarkdownContainer"] li,
+        [data-testid="stExpander"] summary,
+        [data-testid="stExpander"] p {
+            font-size: 1.08rem !important;
+            line-height: 1.55 !important;
+        }
+        [data-testid="stCaptionContainer"], .stCaption {
+            font-size: 0.95rem !important;
+        }
+
+        /* Bigger, higher-contrast text in every input-shaped widget */
+        input, textarea, select,
+        [data-baseweb="input"] input, [data-baseweb="textarea"] textarea,
+        [data-baseweb="select"] * {
+            font-size: 1.08rem !important;
+            color: #2C1810 !important;
+        }
+        [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea,
+        [data-testid="stChatInput"] textarea {
+            border: 1.5px solid #9B7B6A !important;
+            border-radius: 8px !important;
+            background-color: #FDF8EE !important;
+        }
+        [data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus,
+        [data-testid="stChatInput"] textarea:focus {
+            border-color: #C8521A !important;
+            box-shadow: 0 0 0 1px #C8521A !important;
+        }
+        /* Streamlit's "Press Enter to apply" hint -- make it visible, not gray-on-gray */
+        [data-testid*="InputInstructions"], [data-testid*="inputInstructions"] {
+            color: #C8521A !important;
+            font-weight: 600 !important;
+        }
+
+        [data-testid="stExpander"] {
+            border: 1.5px solid #9B7B6A !important;
+            border-radius: 10px !important;
+            background-color: #FAF3E4 !important;
+            margin-bottom: 8px;
+        }
+        .stButton > button, .stDownloadButton > button {
+            border-radius: 8px !important;
+            border: 1.5px solid #9B7B6A !important;
+            font-size: 1rem !important;
+        }
+        .stButton > button[kind="primary"] {
+            background-color: #C8521A !important;
+            border-color: #C8521A !important;
+            color: #FDF8EE !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stFileUploader"], [data-testid="stTextArea"] textarea {
+            border-radius: 10px !important;
+        }
+        /* Sidebar: darker card tone so it visibly separates from the main page */
+        [data-testid="stSidebar"] {
+            background-color: #EADFC0 !important;
+            border-right: 1px solid #9B7B6A;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _do_push(item, *, dry_run: bool, calendar_id: str | None = None) -> bool:
