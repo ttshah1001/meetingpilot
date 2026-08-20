@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 - Transcript chunking for long meetings — planned, not yet built.
 
+## [0.6.0] - 2026-08-20
+
+### Added
+- Chat-based refinement for the summary/diagrams feature (`refine_summary()` in `summary.py`, new "Refine summary / diagrams" chat box in the UI). Ask for changes after the first pass and it edits in place, grounded in the original transcript/screenshots plus the current draft, rather than starting over. Verified live: text refinement (112→47 words on request) and diagram refinement (renamed + changed layout direction) both keep unrelated content unchanged.
+- Page reordered: Summary → Action items → refinement chat → raw "Normalized speaker turns" now at the very bottom, after the chat.
+
+### Fixed
+- **Real crash**: a malformed `due_date_iso` value from the LLM passed through completely unvalidated and crashed the whole page the instant any code (Calendar/Tasks/`.ics` export, triggered just by rendering the page) tried to parse it as a real date. Both `due_date_iso` and `proposed_due_date_iso` now validate as real ISO dates at the Pydantic model boundary, falling back to `None` (correctly flagged `missing_due_date`) instead of crashing.
+
 ## [0.5.1] - 2026-08-20
 
 ### Changed

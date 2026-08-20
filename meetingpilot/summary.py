@@ -100,3 +100,62 @@ def generate_summary(
         images=images,
     )
     return MeetingSummary.model_validate(payload)
+
+
+REFINE_SYSTEM = """You are revising an existing meeting summary and its
+diagrams based on user feedback. You have the original transcript, any
+screenshots, the current draft, and what the user wants changed.
+
+Rules:
+- Apply the requested change precisely. Don't ignore it, don't overcorrect.
+- Everything NOT related to the feedback should stay materially the same as
+  the current draft -- this is an edit, not a rewrite from scratch. Don't
+  drift the tone, length, or content unless asked to.
+- Stay grounded in the original transcript/screenshots -- same "don't invent
+  what isn't there" discipline as the original summary. If the user asks for
+  information that genuinely isn't in the source material, say so in the
+  summary text rather than fabricating it.
+- Diagrams: if feedback is about one diagram, revise that diagram's title or
+  Mermaid code; leave other diagrams unchanged unless told otherwise. If
+  feedback asks to add or remove a diagram, do that.
+- Call submit_summary exactly once with the FULL updated summary and the
+  FULL updated diagrams list -- not just the part that changed.
+"""
+
+
+def refine_summary(
+    current: MeetingSummary,
+    feedback: str,
+    document: TranscriptDocument,
+    screenshots: list[Screenshot] | None = None,
+) -> MeetingSummary:
+    """Revise an existing summary/diagrams based on follow-up chat feedback.
+
+    Same schema and multimodal grounding as generate_summary(), but the
+    prompt includes the current draft plus the user's requested change so
+    the model edits it rather than starting over from scratch.
+    """
+    transcript_block = "\n".join(turn.as_prompt_line() for turn in document.turns)
+    screenshot_note = (
+        f"\n\n{len(screenshots)} screenshot image(s) are attached below."
+        if screenshots
+        else ""
+    )
+    user = (
+        f"Source: {document.source_name}\n\n"
+        f"Original transcript:\n{transcript_block}"
+        f"{screenshot_note}\n\n"
+        f"Current draft (JSON):\n{current.model_dump_json()}\n\n"
+        f"User feedback / requested change:\n{feedback}\n\n"
+        "Apply this feedback and resubmit the full updated summary + diagrams."
+    )
+    images = [(shot.data, shot.mime_type) for shot in screenshots] if screenshots else None
+    payload = call_tool(
+        system=REFINE_SYSTEM,
+        user=user,
+        tool_name=SUMMARY_TOOL,
+        tool_description="Submit the revised meeting summary and diagrams.",
+        input_schema=SUMMARY_SCHEMA,
+        images=images,
+    )
+    return MeetingSummary.model_validate(payload)

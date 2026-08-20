@@ -61,6 +61,28 @@ class ItemSource(str, Enum):
     screenshot = "screenshot"
 
 
+def _validated_iso_date(value: Any) -> str | None:
+    """Accept a date field only if it's actually a valid YYYY-MM-DD date.
+
+    The LLM occasionally emits a malformed value here (a rare glitch,
+    same class as other observed token-level hallucinations) -- without
+    this check, that garbage string passes straight through to any
+    consumer that calls date.fromisoformat() on it (Calendar, Tasks,
+    .ics export), crashing the whole page instead of just being treated
+    as "no real date was given."
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+    return text[:10]
+
+
 class ExtractedItem(BaseModel):
     """Strict extraction schema (LLM call #1)."""
 
@@ -86,10 +108,7 @@ class ExtractedItem(BaseModel):
     @field_validator("due_date_iso", mode="before")
     @classmethod
     def blank_date_to_none(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        text = str(value).strip()
-        return text or None
+        return _validated_iso_date(value)
 
     @field_validator("confidence", mode="before")
     @classmethod
@@ -117,6 +136,11 @@ class PlannedItem(ExtractedItem):
     planning_notes: str | None = None
     still_open_from_last_time: list[str] = Field(default_factory=list)
     needs_review: bool = False
+
+    @field_validator("proposed_due_date_iso", mode="before")
+    @classmethod
+    def validate_proposed_date(cls, value: Any) -> str | None:
+        return _validated_iso_date(value)
 
     def resolved_due_date(self) -> str | None:
         return self.due_date_iso or self.proposed_due_date_iso

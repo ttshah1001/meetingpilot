@@ -57,12 +57,13 @@ Click **Download .ics** on one item — open the downloaded file if easy, or jus
 
 ---
 
-### 2:45–3:30 — Summary + diagram synthesis (optional bonus beat, if time allows)
+### 2:45–3:30 — Summary + diagram synthesis, with chat refinement (optional bonus beat, if time allows)
 
-1. Toggle **"Generate summary + diagrams"** in the sidebar before processing (or reprocess sample 01 + the Kanban image with it on).
-2. Point at the short text summary, then the rendered Mermaid diagram it reconstructs from the board layout. Click **"Download PNG"** or **"Download SVG"** on it — real client-side download, no server round-trip.
+1. Toggle **"Generate summary + diagrams"** in the sidebar's "⚙️ Testing & advanced options" before processing (or reprocess sample 01 + the Kanban image with it on).
+2. Point at the summary paragraph, then the rendered Mermaid diagram it reconstructs from the board layout. Click **"Download PNG"** or **"Download SVG"** on it — real client-side download, no server round-trip.
+3. Scroll to **"Refine summary / diagrams"** and type something in the chat box — e.g. *"make the summary one sentence"* — and hit enter. Point out the summary above visibly shortens/updates in place.
 
-> "This is opt-in and off by default — it's an extra LLM call, and not every meeting has anything worth summarizing or diagramming. The model itself decides how many diagrams are warranted — zero, one, or more — it's not a fixed count. If there's nothing describable, it says so honestly instead of inventing structure — same discipline as the extraction layer."
+> "This is opt-in and off by default — it's an extra LLM call, and not every meeting has anything worth summarizing or diagramming. The model itself decides how many diagrams are warranted — zero, one, or more — it's not a fixed count. If there's nothing describable, it says so honestly instead of inventing structure — same discipline as the extraction layer. And it's not a one-shot generation — you can chat with it afterward to refine the summary or a diagram, and it edits in place rather than starting over."
 
 ---
 

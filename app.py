@@ -17,6 +17,7 @@ from meetingpilot.ingestion import ingest_text
 from meetingpilot.memory import list_open_items
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
+from meetingpilot.summary import refine_summary
 from meetingpilot.tasks_tool import push_task
 
 TRANSCRIPT_EXTENSIONS = (".txt", ".vtt", ".srt")
@@ -197,6 +198,9 @@ def main() -> None:
             st.session_state["last_payloads"] = []
             st.session_state["last_gmail_drafts"] = []
             st.session_state["last_task_payloads"] = []
+            st.session_state["last_document"] = document
+            st.session_state["last_screenshots"] = screenshots
+            st.session_state["summary_chat_history"] = []
 
     result = st.session_state.get("result")
     if not result:
@@ -366,6 +370,52 @@ def main() -> None:
             st.rerun()
         for payload in task_payloads:
             st.code(json.dumps(payload, indent=2), language="json")
+
+    if result.summary is not None:
+        st.markdown("---")
+        st.subheader("Refine summary / diagrams")
+        st.caption(
+            'Chat here to request changes — e.g. "make it shorter", "add a diagram for the '
+            'deployment flow", "rename the second diagram". Each message regenerates the summary '
+            "and diagrams shown above, grounded in the same transcript/screenshots — not a rewrite "
+            "from scratch."
+        )
+        chat_history = st.session_state.setdefault("summary_chat_history", [])
+        for msg in chat_history:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+
+        feedback = st.chat_input("Ask for a change to the summary or diagrams…")
+        if feedback:
+            chat_history.append({"role": "user", "content": feedback})
+            last_document = st.session_state.get("last_document")
+            last_screenshots = st.session_state.get("last_screenshots")
+            if last_document is None:
+                chat_history.append(
+                    {
+                        "role": "assistant",
+                        "content": "Can't refine — the original transcript for this session isn't "
+                        "available (likely processed before this feature was added). Reprocess the "
+                        "meeting once, then refinement will work.",
+                    }
+                )
+            else:
+                with st.spinner("Regenerating summary + diagrams…"):
+                    try:
+                        updated = refine_summary(
+                            result.summary,
+                            feedback,
+                            last_document,
+                            screenshots=last_screenshots or None,
+                        )
+                        result.summary = updated
+                        st.session_state["result"] = result
+                        chat_history.append(
+                            {"role": "assistant", "content": "Updated the summary and diagrams above."}
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        chat_history.append({"role": "assistant", "content": f"Couldn't apply that: {exc}"})
+            st.rerun()
 
     st.subheader("Normalized speaker turns")
     st.dataframe(
