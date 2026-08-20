@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from meetingpilot.extraction import validate_extraction_payload
-from meetingpilot.models import ExtractedItem, Priority
+from meetingpilot.models import ExtractedItem, PlannedItem, Priority
 
 
 VALID_PAYLOAD = {
@@ -76,3 +76,44 @@ def test_invalid_priority_rejected():
     }
     with pytest.raises((ValueError, ValidationError)):
         validate_extraction_payload(payload)
+
+
+def test_malformed_due_date_iso_becomes_none_not_a_crash():
+    """Regression: a real crash was found where a malformed due_date_iso
+    from the LLM (e.g. a stray JSON fragment) passed straight through
+    unvalidated, then blew up any consumer calling date.fromisoformat()
+    on it (Calendar, Tasks, .ics export). Must be nulled at the model
+    boundary instead, so the item just gets flagged missing_due_date."""
+    payload = {
+        "items": [
+            {
+                **VALID_PAYLOAD["items"][0],
+                "due_date_iso": "null,due_date_text:",
+            }
+        ]
+    }
+    items = validate_extraction_payload(payload)
+    assert items[0].due_date_iso is None
+
+
+def test_malformed_proposed_due_date_iso_becomes_none():
+    item = PlannedItem(
+        task="Do the thing",
+        source_quote="quote",
+        confidence=0.9,
+        proposed_due_date_iso="not-a-real-date",
+    )
+    assert item.proposed_due_date_iso is None
+
+
+def test_well_formed_due_date_iso_is_preserved():
+    payload = {
+        "items": [
+            {
+                **VALID_PAYLOAD["items"][0],
+                "due_date_iso": "2026-08-21",
+            }
+        ]
+    }
+    items = validate_extraction_payload(payload)
+    assert items[0].due_date_iso == "2026-08-21"

@@ -67,7 +67,7 @@ From the project root, with the virtualenv managed by uv:
 uv run streamlit run app.py
 ```
 
-Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate summary + diagrams" in the sidebar to also try that feature — each rendered diagram has real "Download SVG"/"Download PNG" buttons (client-side, via the browser, no server round-trip). Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available. There's also a "Your name" field to limit bulk push/export to your own tasks instead of the whole team's.
+Drop a transcript + screenshots together in the uploader (or load a sample), leave the dry-run toggles checked (they're tucked into "⚙️ Testing & advanced options" in the sidebar) unless you completed Google OAuth, and click **Process Meeting**. Enable "Generate summary + diagrams" in that same section to also try that feature — once generated, a chat box appears ("Refine summary / diagrams") where you can ask for changes ("make it shorter," "add a diagram for X") and it regenerates in place, grounded in the same transcript/screenshots rather than starting over. Each rendered diagram has real "Download SVG"/"Download PNG" buttons (client-side, via the browser, no server round-trip). Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available. "Your name" and a dedicated calendar ID live at the top of the sidebar to keep bulk actions scoped to you and test events separate from your real calendar.
 
 **CLI — extraction only (LLM call #1, JSON to stdout, no DB):**
 
