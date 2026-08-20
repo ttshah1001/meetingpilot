@@ -42,7 +42,7 @@ def get_settings() -> Settings:
         anthropic_api_key=key,
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
         gemini_api_key=gemini_key,
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"),
         db_path=_path_from_env("MEETINGPILOT_DB", "meetings.db"),
         google_credentials_path=_path_from_env(
             "GOOGLE_CREDENTIALS_PATH", "credentials.json"

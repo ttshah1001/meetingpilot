@@ -6,6 +6,11 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 - Transcript chunking for long meetings — planned, not yet built.
 
+## [0.4.1] - 2026-08-20
+
+### Changed
+- Default model switched from `gemini-3.6-flash` to `gemini-flash-lite-latest` to reduce free-tier daily-quota risk on demo day. Confirmed to still support both forced function calling and multimodal image input before switching; re-verified a full live extraction+planning+Calendar+Gmail+.ics run on the new default.
+
 ## [0.4.0] - 2026-08-20
 
 ### Added
