@@ -96,7 +96,7 @@ Repo: `https://github.com/ttshah1001/meetingpilot` — **currently private, must
 - **Tools**: Google Calendar event creation via OAuth (`calendar.events` scope only), with a `--dry-run` mode that prints the exact `events.insert` payload instead of calling Google
 - **Interface**: Streamlit web UI (`app.py`) and CLI (`python -m meetingpilot`)
 - Tests: `uv run pytest -q`, no API keys or Google account required (Calendar is mocked; schema/date/dedup/memory logic tested locally)
-- Stack: Python 3.11, uv, Google Gemini API (`gemini-3.6-flash` default, `google-genai` SDK), Streamlit, Pydantic, SQLAlchemy, python-dateutil, google-api-python-client, google-auth-oauthlib. Anthropic (`anthropic` SDK) kept as an optional/legacy dependency, not used by the app itself.
+- Stack: Python 3.11, uv, Google Gemini API (`gemini-flash-lite-latest` default as of 2026-08-20, `google-genai` SDK), Streamlit, Pydantic, SQLAlchemy, python-dateutil, google-api-python-client, google-auth-oauthlib, icalendar. Anthropic (`anthropic` SDK) kept as an optional/legacy dependency, not used by the app itself.
 - Cursor (Composer) used to scaffold/implement; Claude Code used for the Gemini migration and Google OAuth setup
 
 ### Documented known limitations (already in README — reuse for slides, don't just restate)

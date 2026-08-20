@@ -1,6 +1,6 @@
 [project]
 name = "meetingpilot"
-version = "0.4.0"
+version = "0.4.1"
 description = "LLM agent that turns meeting transcripts into tracked, calendared action items."
 readme = "README.md"
 requires-python = ">=3.11"

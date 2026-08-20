@@ -37,7 +37,7 @@ Full architecture (diagrams, design rationale, known limitations) is in [docs/AR
      cp .env.example .env
      ```
 
-   - Set `GEMINI_API_KEY=...` inside `.env`. Optionally override `GEMINI_MODEL` (default `gemini-3.6-flash`).
+   - Set `GEMINI_API_KEY=...` inside `.env`. Optionally override `GEMINI_MODEL` (default `gemini-flash-lite-latest` — chosen for its more generous free-tier daily quota; `gemini-3.5-flash`/`gemini-3.6-flash` both cap at 20 requests/day).
 
 4. **Google Calendar + Gmail OAuth (optional — skip if you will demo with dry-run, which is the default).**
 
