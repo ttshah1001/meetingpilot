@@ -1,9 +1,9 @@
-"""Shared Google OAuth: one combined token for Calendar + Gmail scopes.
+"""Shared Google OAuth: one combined token for Calendar + Gmail + Tasks scopes.
 
-Both calendar_tool.py and gmail_tool.py use this so a single consent
-covers both tools instead of each requesting its own scope against the
-same token file (which silently produces a token missing the other
-tool's scope).
+calendar_tool.py, gmail_tool.py, and tasks_tool.py all use this so a
+single consent covers every tool instead of each requesting its own
+scope against the same token file (which silently produces a token
+missing the other tools' scopes).
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from meetingpilot.config import get_settings
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/tasks",
 ]
 
 

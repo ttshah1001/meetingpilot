@@ -9,7 +9,7 @@ Usage:
 Requires (put these in .env / credentials.json first, see README.md):
     GEMINI_API_KEY      (.env) -- primary LLM, free tier via https://aistudio.google.com/apikey
     ANTHROPIC_API_KEY   (.env) -- optional, only if still testing the Claude path
-    credentials.json    (Google OAuth Desktop client, project root) -- Calendar + Gmail
+    credentials.json    (Google OAuth Desktop client, project root) -- Calendar + Gmail + Tasks
 """
 
 from __future__ import annotations
@@ -105,11 +105,12 @@ def check_anthropic() -> None:
 ALL_GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/tasks",
 ]
 
 
 def _google_creds():
-    """One combined OAuth round-trip for both Calendar + Gmail scopes.
+    """One combined OAuth round-trip for Calendar + Gmail + Tasks scopes.
 
     Binds the local callback server to 127.0.0.1 explicitly (not
     "localhost") — on some Macs, "localhost" resolves to the IPv6
@@ -150,6 +151,7 @@ def check_google() -> None:
     except Exception as exc:  # noqa: BLE001
         record("Google Calendar API", False, f"{type(exc).__name__}: {exc}")
         record("Gmail API (gmail.compose)", False, "skipped — Google login failed above")
+        record("Google Tasks API", False, "skipped — Google login failed above")
         return
 
     try:
@@ -179,6 +181,21 @@ def check_google() -> None:
             "APIs & Services > Library > Gmail API > Enable)",
         )
 
+    try:
+        from googleapiclient.discovery import build
+
+        service = build("tasks", "v1", credentials=creds)
+        lists = service.tasklists().list().execute()
+        record("Google Tasks API", True, f"{len(lists.get('items', []))} task list(s) visible")
+    except Exception as exc:  # noqa: BLE001
+        record(
+            "Google Tasks API",
+            False,
+            f"{type(exc).__name__}: {exc} "
+            "(likely cause: Google Tasks API not enabled in the same Cloud Console project — "
+            "APIs & Services > Library > Google Tasks API > Enable)",
+        )
+
 
 def main() -> None:
     print("MeetingPilot access check — no real events/drafts are created.\n")
@@ -196,7 +213,7 @@ def main() -> None:
         print(f"\n{len(failed)} required door(s) not open yet: {', '.join(failed)}")
         print("Fix these before building the matching feature — see README.md setup steps.")
         sys.exit(1)
-    print("\nAll required doors open. Safe to build the multimodal + Gmail-draft + .ics extension.")
+    print("\nAll required doors open. Safe to build the multimodal + Gmail-draft + .ics + Tasks extension.")
 
 
 if __name__ == "__main__":

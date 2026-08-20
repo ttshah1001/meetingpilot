@@ -16,6 +16,7 @@ flowchart TD
     CAL[5a. Tool: Google Calendar]
     GMAIL[5b. Tool: Gmail draft]
     ICS[5c. Tool: .ics export]
+    TASKS[5d. Tool: Google Tasks]
     SUM["6. Summary + diagrams - Gemini call #3 (optional, multimodal, 0-N diagrams)"]
 
     UI --> ING
@@ -26,9 +27,11 @@ flowchart TD
     PLAN --> CAL
     PLAN --> GMAIL
     PLAN --> ICS
+    PLAN --> TASKS
     CAL -->|event or dry-run payload| UI
     GMAIL -->|draft or dry-run preview, never sent| UI
     ICS -->|downloadable file, no API key| UI
+    TASKS -->|checkable to-do or dry-run payload| UI
     ING -.->|optional| SUM
     SUM -.->|text summary + Mermaid diagram(s)| UI
     ING --> MEM
@@ -70,7 +73,9 @@ After extraction, **relative dates are resolved in Python** against the meeting 
 
 **Summary + diagram synthesis is optional and off by default.** It's a third LLM call, and not every meeting has anything worth summarizing or diagramming — the model is instructed to say so (`summary: null`, `diagrams: []`) rather than invent content, same discipline as action-item extraction. Critically, the *number* of diagrams (0, 1, or more) is model-decided, not hardcoded — if there are genuinely two distinct describable structures (e.g. a system architecture and a separate Kanban board), both come back as separate entries. Each rendered diagram gets real client-side SVG/PNG download buttons — mermaid.js already produces the SVG in the browser, the buttons just save that output, no server round-trip.
 
-**Every external-write tool has a dry-run mode.** Calendar and Gmail both default to dry-run, printing the exact API payload/MIME preview instead of executing. Gmail is additionally *structurally* draft-only — the module only ever calls `drafts().create`, never `send`.
+**Every external-write tool has a dry-run mode.** Calendar, Gmail, and Google Tasks all default to dry-run, printing the exact API payload/MIME preview instead of executing. Gmail is additionally *structurally* draft-only — the module only ever calls `drafts().create`, never `send`.
+
+**Google Tasks over/alongside Calendar.** Calendar events are date-based reminders, not real to-dos with a completion state — a semantic mismatch for "action items." Google Tasks (`meetingpilot/tasks_tool.py`) is the more natural fit: title, notes, due date, and a real checkbox. Added as an additional tool, not a replacement — Calendar was already built, tested, and part of the original locked scope.
 
 ## Known failure cases
 

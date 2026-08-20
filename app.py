@@ -17,6 +17,7 @@ from meetingpilot.ingestion import ingest_text
 from meetingpilot.memory import list_open_items
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
+from meetingpilot.tasks_tool import push_task
 
 TRANSCRIPT_EXTENSIONS = (".txt", ".vtt", ".srt")
 SCREENSHOT_EXTENSIONS = tuple(SCREENSHOT_MIME_BY_EXTENSION)
@@ -70,6 +71,11 @@ def main() -> None:
         "Gmail dry-run (recommended for demo)",
         value=True,
         help="Shows the exact draft MIME content instead of creating a real Gmail draft. Never sends either way.",
+    )
+    tasks_dry_run = st.sidebar.checkbox(
+        "Google Tasks dry-run (recommended for demo)",
+        value=True,
+        help="Prints the exact Google Tasks API payload instead of creating a real, checkable to-do.",
     )
     generate_summary_from_content = st.sidebar.checkbox(
         "Generate summary + diagrams (experimental)",
@@ -174,6 +180,7 @@ def main() -> None:
             )
             st.session_state["last_payloads"] = []
             st.session_state["last_gmail_drafts"] = []
+            st.session_state["last_task_payloads"] = []
 
     result = st.session_state.get("result")
     if not result:
@@ -246,7 +253,7 @@ def main() -> None:
                 if item.planning_notes:
                     st.caption(item.planning_notes)
                 due = item.due_date_iso or item.proposed_due_date_iso
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     if st.button(
                         "Push to Calendar",
@@ -261,6 +268,13 @@ def main() -> None:
                     ):
                         _do_gmail_draft(item, dry_run=gmail_dry_run)
                 with col3:
+                    if st.button(
+                        "Add to Tasks",
+                        key=f"tasks-{owner}-{item.rank}-{hash(item.task)}",
+                        disabled=not due,
+                    ):
+                        _do_push_task(item, dry_run=tasks_dry_run)
+                with col4:
                     if due:
                         st.download_button(
                             "Download .ics",
@@ -280,7 +294,7 @@ def main() -> None:
     bulk_items = _filter_by_owner(dated_items, my_name_filter)
     filter_note = f" owned by '{my_name_filter}'" if my_name_filter else ""
 
-    col_a, col_b = st.columns(2)
+    col_a, col_b, col_c = st.columns(3)
     with col_a:
         if st.button(f"Push all {len(bulk_items)} dated item(s){filter_note} to Calendar"):
             st.session_state["last_payloads"] = []
@@ -293,6 +307,15 @@ def main() -> None:
             else:
                 st.success(f"Processed {succeeded} calendar payload(s). dry-run={dry_run}")
     with col_b:
+        if st.button(f"Push all {len(bulk_items)} dated item(s){filter_note} to Tasks"):
+            st.session_state["last_task_payloads"] = []
+            succeeded = sum(_do_push_task(item, dry_run=tasks_dry_run) for item in bulk_items)
+            failed = len(bulk_items) - succeeded
+            if failed:
+                st.warning(f"{succeeded}/{len(bulk_items)} succeeded, {failed} failed (see errors above). dry-run={tasks_dry_run}")
+            else:
+                st.success(f"Processed {succeeded} task payload(s). dry-run={tasks_dry_run}")
+    with col_c:
         st.download_button(
             f"Download {len(bulk_items)} dated item(s){filter_note} as one .ics",
             data=build_ics_bundle_bytes(bulk_items),
@@ -318,6 +341,15 @@ def main() -> None:
             st.rerun()
         for preview in drafts:
             st.code(preview, language="text")
+
+    task_payloads = st.session_state.get("last_task_payloads") or []
+    if task_payloads:
+        st.subheader("Google Tasks API payloads")
+        if st.button("Clear log", key="clear-tasks-log"):
+            st.session_state["last_task_payloads"] = []
+            st.rerun()
+        for payload in task_payloads:
+            st.code(json.dumps(payload, indent=2), language="json")
 
     st.subheader("Normalized speaker turns")
     st.dataframe(
@@ -440,6 +472,20 @@ def _do_gmail_draft(item, *, dry_run: bool) -> bool:
         st.caption("Dry-run: MIME content captured below — no draft was created, nothing was sent.")
     else:
         st.success(f"Created Gmail draft {result.draft_id} (draft only — not sent)")
+    return True
+
+
+def _do_push_task(item, *, dry_run: bool) -> bool:
+    try:
+        result = push_task(item, dry_run=dry_run)
+    except Exception as exc:  # noqa: BLE001
+        st.error(str(exc))
+        return False
+    st.session_state.setdefault("last_task_payloads", []).append(result.payload)
+    if dry_run:
+        st.caption("Dry-run: payload captured below — nothing was sent to Google.")
+    else:
+        st.success(f"Created Google Task {result.task_id}")
     return True
 
 
