@@ -7,9 +7,11 @@ from datetime import date
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from meetingpilot.calendar_tool import push_item
 from meetingpilot.config import PROJECT_ROOT, get_settings
+from meetingpilot.gmail_tool import create_draft
 from meetingpilot.ingestion import ingest_text
 from meetingpilot.memory import list_open_items
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
@@ -41,6 +43,18 @@ def main() -> None:
         "Calendar dry-run (recommended for demo)",
         value=True,
         help="Prints the exact Google Calendar API payload instead of creating events.",
+    )
+    gmail_dry_run = st.sidebar.checkbox(
+        "Gmail dry-run (recommended for demo)",
+        value=True,
+        help="Shows the exact draft MIME content instead of creating a real Gmail draft. Never sends either way.",
+    )
+    generate_diagram_from_content = st.sidebar.checkbox(
+        "Generate diagram from content (experimental)",
+        value=False,
+        help="Extra LLM call: reconstructs a Mermaid diagram from a whiteboard/flowchart screenshot or a "
+        "process described in the transcript. Off by default — costs an extra call and not every meeting "
+        "has anything diagram-worthy.",
     )
 
     st.sidebar.markdown("---")
@@ -118,6 +132,8 @@ def main() -> None:
             if screenshots
             else "Extraction (LLM #1), then planning (LLM #2)…"
         )
+        if generate_diagram_from_content:
+            spinner_text += " Also checking for a diagram (LLM #3)…"
         with st.spinner(spinner_text):
             st.session_state["result"] = process_meeting(
                 document=document,
@@ -125,8 +141,10 @@ def main() -> None:
                 title=meeting_title,
                 persist=True,
                 screenshots=screenshots or None,
+                generate_diagram_from_content=generate_diagram_from_content,
             )
             st.session_state["last_payloads"] = []
+            st.session_state["last_gmail_drafts"] = []
 
     result = st.session_state.get("result")
     if not result:
@@ -143,6 +161,15 @@ def main() -> None:
             f"{len(result.open_from_previous)} still-open item(s) from earlier meetings "
             "are listed in the sidebar."
         )
+
+    if result.diagram is not None:
+        if result.diagram.has_diagram:
+            st.subheader(f"Diagram: {result.diagram.title or 'Reconstructed from meeting content'}")
+            _render_mermaid(result.diagram.mermaid_code)
+            with st.expander("Mermaid source"):
+                st.code(result.diagram.mermaid_code, language="text")
+        else:
+            st.caption("Diagram check: nothing describable found in the transcript/screenshots.")
 
     st.subheader("Action items (grouped by owner)")
     grouped: dict[str, list] = {}
@@ -186,12 +213,20 @@ def main() -> None:
                 if item.planning_notes:
                     st.caption(item.planning_notes)
                 due = item.due_date_iso or item.proposed_due_date_iso
-                if st.button(
-                    "Push to Calendar",
-                    key=f"push-{owner}-{item.rank}-{hash(item.task)}",
-                    disabled=not due,
-                ):
-                    _do_push(item, dry_run=dry_run)
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(
+                        "Push to Calendar",
+                        key=f"push-{owner}-{item.rank}-{hash(item.task)}",
+                        disabled=not due,
+                    ):
+                        _do_push(item, dry_run=dry_run)
+                with col2:
+                    if st.button(
+                        "Draft Gmail",
+                        key=f"gmail-{owner}-{item.rank}-{hash(item.task)}",
+                    ):
+                        _do_gmail_draft(item, dry_run=gmail_dry_run)
 
     if st.button("Push all dated items to Calendar"):
         dated = [i for i in result.planned if i.due_date_iso or i.proposed_due_date_iso]
@@ -204,6 +239,12 @@ def main() -> None:
         st.subheader("Calendar API payloads")
         for payload in payloads:
             st.code(json.dumps(payload, indent=2), language="json")
+
+    drafts = st.session_state.get("last_gmail_drafts") or []
+    if drafts:
+        st.subheader("Gmail drafts (draft-only, never sent)")
+        for preview in drafts:
+            st.code(preview, language="text")
 
     st.subheader("Normalized speaker turns")
     st.dataframe(
@@ -221,6 +262,33 @@ def main() -> None:
     )
 
 
+def _render_mermaid(mermaid_code: str) -> None:
+    """Render Mermaid syntax via mermaid.js loaded from a CDN.
+
+    This Streamlit version has no native Mermaid support, so the diagram
+    is rendered inside an embedded HTML component instead.
+    """
+    safe_code = json.dumps(mermaid_code)
+    components.html(
+        f"""
+        <div class="mermaid" id="mp-diagram"></div>
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+        <script>
+            mermaid.initialize({{ startOnLoad: false, theme: "neutral" }});
+            const code = {safe_code};
+            mermaid.render("mp-diagram-svg", code).then(({{ svg }}) => {{
+                document.getElementById("mp-diagram").innerHTML = svg;
+            }}).catch((err) => {{
+                document.getElementById("mp-diagram").innerHTML =
+                    "<pre>Mermaid render error: " + err + "</pre>";
+            }});
+        </script>
+        """,
+        height=420,
+        scrolling=True,
+    )
+
+
 def _do_push(item, *, dry_run: bool) -> None:
     try:
         result = push_item(item, dry_run=dry_run)
@@ -232,6 +300,19 @@ def _do_push(item, *, dry_run: bool) -> None:
         st.caption("Dry-run: payload captured below — nothing was sent to Google.")
     else:
         st.success(f"Created calendar event {result.event_id}")
+
+
+def _do_gmail_draft(item, *, dry_run: bool) -> None:
+    try:
+        result = create_draft(item, dry_run=dry_run)
+    except Exception as exc:  # noqa: BLE001
+        st.error(str(exc))
+        return
+    st.session_state.setdefault("last_gmail_drafts", []).append(result.mime_preview)
+    if dry_run:
+        st.caption("Dry-run: MIME content captured below — no draft was created, nothing was sent.")
+    else:
+        st.success(f"Created Gmail draft {result.draft_id} (draft only — not sent)")
 
 
 if __name__ == "__main__":

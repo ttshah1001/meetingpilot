@@ -123,6 +123,14 @@ class PlannedItemList(BaseModel):
     items: list[PlannedItem]
 
 
+class DiagramResult(BaseModel):
+    """Output of the optional diagram-synthesis LLM call."""
+
+    has_diagram: bool
+    title: str | None = None
+    mermaid_code: str | None = None
+
+
 class OpenMemoryItem(BaseModel):
     id: int
     meeting_id: int
@@ -143,6 +151,7 @@ class PipelineResult(BaseModel):
     extracted: list[ExtractedItem]
     planned: list[PlannedItem]
     open_from_previous: list[OpenMemoryItem] = Field(default_factory=list)
+    diagram: DiagramResult | None = None
 
     def to_console_dict(self) -> dict[str, Any]:
         return {
@@ -153,6 +162,7 @@ class PipelineResult(BaseModel):
             "extracted": [item.model_dump() for item in self.extracted],
             "planned": [item.model_dump() for item in self.planned],
             "open_from_previous": [item.model_dump() for item in self.open_from_previous],
+            "diagram": self.diagram.model_dump() if self.diagram else None,
         }
 
 

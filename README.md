@@ -2,42 +2,55 @@
 
 ## What this does
 
-MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) and turns it into tracked action items. It extracts structured tasks with owners, due dates, priorities, source quotes, and confidence scores, then stores them in a local SQLite database so later meetings can surface work that is still open. When a task has a due date, it can create a Google Calendar event — or print the exact API payload in `--dry-run` mode if Calendar is not set up.
+MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items. It extracts structured tasks with owners, due dates, priorities, source quotes, confidence scores, and a `source` tag (`transcript` vs `screenshot`, genuine multimodal extraction — not OCR bolted on), then stores them in a local SQLite database so later meetings can surface work that is still open. When a task has a due date, it can create a Google Calendar event or a Gmail draft — or print the exact API payload in dry-run mode if Google isn't set up. It can also optionally reconstruct a Mermaid diagram from a whiteboard/flowchart screenshot or a process described in the transcript.
 
 ## Architecture diagram
 
-Six explicit layers. Data only moves downward; extraction and planning are **two separate LLM calls**.
+Data only moves downward; extraction and planning are **two separate LLM calls** (both Gemini, forced function calling), plus an optional third diagram-synthesis call.
 
 ```mermaid
 flowchart TD
-    UI[Interface: Streamlit / CLI] --> ING[1. Ingestion]
-    ING -->|speaker turns + timestamps| EXT[2. Extraction - LLM call 1]
-    EXT -->|raw action items JSON| PLAN[3. Planning / dedup - LLM call 2]
-    PLAN -->|merged, ranked, flagged items| MEM[4. Memory - SQLite]
+    UI[Interface: Streamlit / CLI]
+    ING[1. Ingestion: transcript + screenshots]
+    EXT["2. Extraction - Gemini call #1 (multimodal: text + images)"]
+    PLAN[3. Planning / dedup - Gemini call #2]
+    MEM[4. Memory - SQLite]
+    CAL[5a. Tool: Google Calendar]
+    GMAIL[5b. Tool: Gmail draft]
+    DIAG["6. Diagram synthesis - Gemini call #3 (optional, multimodal)"]
+
+    UI --> ING
+    ING -->|speaker turns + screenshots| EXT
+    EXT -->|items tagged source: transcript/screenshot| PLAN
+    PLAN -->|merged, ranked, flagged items| MEM
     MEM -->|open items from last time| UI
-    PLAN --> CAL[5. Tool use - Google Calendar]
+    PLAN --> CAL
+    PLAN --> GMAIL
     CAL -->|event or dry-run payload| UI
+    GMAIL -->|draft or dry-run preview, never sent| UI
+    ING -.->|optional| DIAG
+    DIAG -.->|Mermaid diagram| UI
     ING --> MEM
 ```
 
 ```
-transcript .txt/.vtt/.srt/paste
+transcript .txt/.vtt/.srt/paste + screenshots .png/.jpg
         |  Ingestion
         v
- speaker-turn segments
-        |  Extraction (Anthropic tool call #1)
+ speaker-turn segments + image content blocks
+        |  Extraction (Gemini function call #1, multimodal)
         v
- {task, owner, due_date_iso, priority, source_quote, confidence}
+ {task, owner, due_date_iso, priority, source_quote, confidence, source}
         |  local date resolution vs meeting date
-        |  Planning (Anthropic tool call #2 + deterministic dedup)
+        |  Planning (Gemini function call #2 + deterministic dedup)
         v
  merged / ranked items + missing owner/date flags
         |  Memory (meetings.db)
         v
  persist + "still open from last time"
-        |  Calendar tool (or --dry-run payload)
+        |  Calendar tool / Gmail draft tool (or dry-run payload/preview)
         v
- Streamlit table grouped by owner
+ Streamlit table grouped by owner, source-tagged (🖼️/📝)
 ```
 
 ## Setup

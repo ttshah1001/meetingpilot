@@ -10,6 +10,7 @@ from pathlib import Path
 
 from meetingpilot.calendar_tool import push_items
 from meetingpilot.extraction import extract_action_items
+from meetingpilot.gmail_tool import create_drafts
 from meetingpilot.ingestion import ingest_file, ingest_text
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
@@ -50,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stop after LLM call #1 and print extracted JSON (no planning, no DB).",
     )
     parser.add_argument(
+        "--diagram",
+        action="store_true",
+        help="Also run the optional diagram-synthesis LLM call (Mermaid, from screenshots/transcript).",
+    )
+    parser.add_argument(
         "--no-save",
         action="store_true",
         help="Run extraction+planning but do not write to SQLite.",
@@ -69,6 +75,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--live-calendar",
         action="store_true",
         help="Disable dry-run when used with --push-calendar.",
+    )
+    parser.add_argument(
+        "--push-gmail",
+        action="store_true",
+        help="After processing, create Gmail drafts for each item (draft-only, never sends).",
+    )
+    parser.add_argument(
+        "--live-gmail",
+        action="store_true",
+        help="Disable dry-run when used with --push-gmail. Still only creates drafts, never sends.",
     )
     return parser
 
@@ -110,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         title=args.title or Path(args.transcript).stem if args.transcript else "stdin",
         persist=not args.no_save,
         screenshots=screenshots or None,
+        generate_diagram_from_content=args.diagram,
     )
     print(json.dumps(result.to_console_dict(), indent=2, default=str))
 
@@ -126,6 +143,25 @@ def main(argv: list[str] | None = None) -> int:
                             "payload": p.payload,
                         }
                         for p in pushes
+                    ]
+                },
+                indent=2,
+            )
+        )
+
+    if args.push_gmail:
+        dry_run = not args.live_gmail
+        drafts = create_drafts(result.planned, dry_run=dry_run)
+        print(
+            json.dumps(
+                {
+                    "gmail": [
+                        {
+                            "dry_run": d.dry_run,
+                            "draft_id": d.draft_id,
+                            "mime_preview": d.mime_preview,
+                        }
+                        for d in drafts
                     ]
                 },
                 indent=2,

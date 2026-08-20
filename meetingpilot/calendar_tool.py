@@ -7,9 +7,8 @@ from datetime import date, timedelta
 from typing import Any, Optional
 
 from meetingpilot.config import get_settings
+from meetingpilot.google_auth import get_credentials
 from meetingpilot.models import PlannedItem
-
-SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 
 @dataclass
@@ -56,34 +55,10 @@ def build_event_payload(
 
 
 def _google_service():
-    """Build an authenticated Calendar API client. Token is stored locally."""
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
+    """Build an authenticated Calendar API client via the shared OAuth token."""
     from googleapiclient.discovery import build
 
-    settings = get_settings()
-    creds_path = settings.google_credentials_path
-    token_path = settings.google_token_path
-
-    if not creds_path.exists():
-        raise FileNotFoundError(
-            f"Google OAuth client file not found at {creds_path}. "
-            "See README.md for Cloud Console setup, or use --dry-run."
-        )
-
-    creds = None
-    if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
-            creds = flow.run_local_server(port=0)
-        token_path.write_text(creds.to_json(), encoding="utf-8")
-
-    return build("calendar", "v3", credentials=creds)
+    return build("calendar", "v3", credentials=get_credentials())
 
 
 def push_item(

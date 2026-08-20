@@ -61,7 +61,7 @@ def call_tool(
     tool_description: str,
     input_schema: dict[str, Any],
     images: list[tuple[bytes, str]] | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
 ) -> dict[str, Any]:
     """Force a structured tool call and return the tool input JSON.
 
@@ -103,25 +103,36 @@ def call_tool(
 
     # Gemini's free tier returns transient 503 (overloaded) / 429 (rate
     # limit) fairly often — retry a few times with backoff rather than
-    # letting one blip fail a live demo.
-    response = None
+    # letting one blip fail a live demo. Also retry when a *successful*
+    # response is missing the tool call: observed in practice on large
+    # multi-item planning payloads, most likely truncation before the
+    # function call args finished — not an HTTP error, so it needs its
+    # own retry path, not just the APIError one below.
+    last_finish_reason = None
     for attempt in range(MAX_RETRIES):
         try:
             response = client.models.generate_content(
                 model=settings.gemini_model, contents=contents, config=config
             )
-            break
         except genai_errors.APIError as exc:
             status = getattr(exc, "code", None)
             if status not in RETRYABLE_STATUS_CODES or attempt == MAX_RETRIES - 1:
                 raise
             time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+            continue
 
-    for candidate in response.candidates or []:
-        parts = candidate.content.parts if candidate.content else None
-        for part in parts or []:
-            fn_call = getattr(part, "function_call", None)
-            if fn_call and fn_call.name == tool_name:
-                return dict(fn_call.args) if fn_call.args else {}
+        for candidate in response.candidates or []:
+            parts = candidate.content.parts if candidate.content else None
+            for part in parts or []:
+                fn_call = getattr(part, "function_call", None)
+                if fn_call and fn_call.name == tool_name:
+                    return dict(fn_call.args) if fn_call.args else {}
+            last_finish_reason = getattr(candidate, "finish_reason", None)
 
-    raise LLMError("Model response did not include the required tool call.")
+        if attempt < MAX_RETRIES - 1:
+            time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+
+    raise LLMError(
+        "Model response did not include the required tool call "
+        f"after {MAX_RETRIES} attempts (last finish_reason: {last_finish_reason})."
+    )

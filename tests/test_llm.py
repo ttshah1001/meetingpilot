@@ -83,11 +83,14 @@ def test_call_tool_returns_function_call_args(mock_client_cls, mock_get_settings
     assert result == {"items": []}
 
 
+@patch("meetingpilot.llm.time.sleep")
 @patch("meetingpilot.llm.get_settings")
 @patch("meetingpilot.llm.genai.Client")
-def test_call_tool_raises_when_candidate_has_no_content(mock_client_cls, mock_get_settings):
+def test_call_tool_raises_when_candidate_has_no_content(mock_client_cls, mock_get_settings, mock_sleep):
     """Regression: a safety-filtered or truncated response has content=None,
-    which must not crash with AttributeError before LLMError can be raised."""
+    which must not crash with AttributeError before LLMError can be raised.
+    Also covers the retry-then-give-up path since this counts as a missing
+    tool call, which now retries before raising."""
     mock_get_settings.return_value = SimpleNamespace(
         gemini_api_key="fake-key", gemini_model="gemini-3.6-flash"
     )
@@ -102,11 +105,13 @@ def test_call_tool_raises_when_candidate_has_no_content(mock_client_cls, mock_ge
             tool_description="desc",
             input_schema={"type": "object", "properties": {}},
         )
+    assert mock_client_cls.return_value.models.generate_content.call_count == 3
 
 
+@patch("meetingpilot.llm.time.sleep")
 @patch("meetingpilot.llm.get_settings")
 @patch("meetingpilot.llm.genai.Client")
-def test_call_tool_raises_when_no_matching_function_call(mock_client_cls, mock_get_settings):
+def test_call_tool_raises_when_no_matching_function_call(mock_client_cls, mock_get_settings, mock_sleep):
     mock_get_settings.return_value = SimpleNamespace(
         gemini_api_key="fake-key", gemini_model="gemini-3.6-flash"
     )
@@ -120,6 +125,35 @@ def test_call_tool_raises_when_no_matching_function_call(mock_client_cls, mock_g
             tool_description="desc",
             input_schema={"type": "object", "properties": {}},
         )
+
+
+@patch("meetingpilot.llm.time.sleep")
+@patch("meetingpilot.llm.get_settings")
+@patch("meetingpilot.llm.genai.Client")
+def test_call_tool_retries_missing_function_call_then_succeeds(mock_client_cls, mock_get_settings, mock_sleep):
+    """Regression for a real failure hit during testing: Gemini returned a
+    successful response with no tool call on a large multi-item planning
+    payload (likely truncation), not caught by the HTTP-error retry path."""
+    mock_get_settings.return_value = SimpleNamespace(
+        gemini_api_key="fake-key", gemini_model="gemini-3.6-flash"
+    )
+    good_candidate = SimpleNamespace(
+        content=SimpleNamespace(parts=[_fake_function_call_part("my_tool", {"ok": True})])
+    )
+    mock_client_cls.return_value.models.generate_content.side_effect = [
+        _fake_response([SimpleNamespace(content=None)]),
+        _fake_response([good_candidate]),
+    ]
+
+    result = call_tool(
+        system="sys",
+        user="user",
+        tool_name="my_tool",
+        tool_description="desc",
+        input_schema={"type": "object", "properties": {}},
+    )
+    assert result == {"ok": True}
+    assert mock_sleep.call_count == 1
 
 
 @patch("meetingpilot.llm.get_settings")
