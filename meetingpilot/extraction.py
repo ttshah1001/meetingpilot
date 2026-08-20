@@ -86,6 +86,10 @@ Rules:
 - Ignore small talk, status updates with no future work, and already-completed work.
 - Do not duplicate an item that is both spoken and shown on a screenshot — extract it once,
   tagged with whichever source states it most precisely.
+- If screenshots are attached, you MUST extract from them as a separate pass, independent of
+  how many items the transcript already gave you. A busy transcript with several action items
+  is not a reason to skip or shortchange screenshot content — every actionable card, bullet, or
+  sticky note not already covered by a spoken line belongs in the list too.
 """
 
 

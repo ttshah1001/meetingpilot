@@ -78,14 +78,14 @@ uv run python -m meetingpilot \
   --extract-only
 ```
 
-**CLI — full pipeline (ingest → extract → plan → SQLite), with screenshots + diagram synthesis:**
+**CLI — full pipeline (ingest → extract → plan → SQLite), with screenshots + diagram synthesis** (`samples/04_kanban_board.png` is a ready-made sample screenshot for trying this):
 
 ```bash
 uv run python -m meetingpilot \
   --transcript samples/01_sprint_planning.txt \
   --meeting-date 2026-08-19 \
   --title "Sprint planning" \
-  --screenshot path/to/whiteboard.png \
+  --screenshot samples/04_kanban_board.png \
   --diagram
 ```
 
