@@ -25,29 +25,18 @@ def build_event_payload(
 ) -> dict[str, Any]:
     """Exact Calendar API body we would send. Shared by live + dry-run."""
     settings = get_settings()
-    due = item.due_date_iso or item.proposed_due_date_iso
+    due = item.resolved_due_date()
     if not due:
         raise ValueError("Cannot create a calendar event without a due date.")
 
     start = date.fromisoformat(due)
     end = start + timedelta(days=1)
-    owner = item.owner or item.proposed_owner or "unassigned"
-    description_lines = [
-        f"Owner: {owner}",
-        f"Priority: {item.priority.value}",
-        f"Confidence: {item.confidence:.2f}",
-        "",
-        "Source quote:",
-        item.source_quote,
-    ]
-    if item.planning_notes:
-        description_lines.extend(["", "Planning notes:", item.planning_notes])
 
     return {
         "calendarId": calendar_id or settings.google_calendar_id,
         "body": {
             "summary": item.task,
-            "description": "\n".join(description_lines),
+            "description": item.description_text(),
             "start": {"date": start.isoformat()},
             "end": {"date": end.isoformat()},
         },
@@ -93,8 +82,7 @@ def push_items(
 ) -> list[CalendarPushResult]:
     results: list[CalendarPushResult] = []
     for item in items:
-        due = item.due_date_iso or item.proposed_due_date_iso
-        if not due:
+        if not item.resolved_due_date():
             continue
         results.append(
             push_item(item, dry_run=dry_run, calendar_service=calendar_service)

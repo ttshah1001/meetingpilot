@@ -34,21 +34,8 @@ def build_draft_payload(item: PlannedItem) -> tuple[dict[str, Any], str]:
     dry-run "preview" an unreadable blob instead of the actual text.
     """
     subject = f"Action item: {item.task}"
-    due = item.due_date_iso or item.proposed_due_date_iso or "no due date set"
-    owner = item.owner or item.proposed_owner or "unassigned"
-    body_lines = [
-        f"Task: {item.task}",
-        f"Owner: {owner}",
-        f"Due: {due}",
-        f"Priority: {item.priority.value}",
-        f"Confidence: {item.confidence:.2f}",
-        "",
-        "Source quote:",
-        item.source_quote,
-    ]
-    if item.planning_notes:
-        body_lines.extend(["", "Planning notes:", item.planning_notes])
-    body = "\n".join(body_lines)
+    due = item.resolved_due_date() or "no due date set"
+    body = f"Task: {item.task}\nDue: {due}\n{item.description_text()}"
 
     message = MIMEText(body)
     message["subject"] = subject

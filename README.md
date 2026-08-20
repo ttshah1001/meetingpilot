@@ -1,6 +1,6 @@
 # MeetingPilot
 
-MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items with owners, due dates, priorities, source quotes, and confidence scores. It stores them in a local SQLite database so later meetings can surface work that is still open, and can push a task to Google Calendar or draft it in Gmail (both dry-run by default). It can also optionally reconstruct a Mermaid diagram from a whiteboard/flowchart screenshot or a process described in the transcript.
+MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items with owners, due dates, priorities, source quotes, and confidence scores. It stores them in a local SQLite database so later meetings can surface work that is still open, and can push a task to Google Calendar, draft it in Gmail (both dry-run by default), or export it as a `.ics` file (no API keys or network required — the fallback if Google access or wifi isn't available). It can also optionally reconstruct a Mermaid diagram from a whiteboard/flowchart screenshot or a process described in the transcript.
 
 Full architecture (diagrams, design rationale, known limitations) is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). See [CHANGELOG.md](CHANGELOG.md) for what changed and when.
 
@@ -67,7 +67,7 @@ From the project root, with the virtualenv managed by uv:
 uv run streamlit run app.py
 ```
 
-Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate diagram from content" in the sidebar to also try the Mermaid feature.
+Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate diagram from content" in the sidebar to also try the Mermaid feature. Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available.
 
 **CLI — extraction only (LLM call #1, JSON to stdout, no DB):**
 
@@ -96,6 +96,15 @@ uv run python -m meetingpilot \
   --transcript samples/01_sprint_planning.txt \
   --meeting-date 2026-08-19 \
   --push-calendar --push-gmail
+```
+
+**CLI — `.ics` export (no API keys, no network, no Google account):**
+
+```bash
+uv run python -m meetingpilot \
+  --transcript samples/01_sprint_planning.txt \
+  --meeting-date 2026-08-19 \
+  --export-ics ./out
 ```
 
 **CLI — actually create a Calendar event / Gmail draft** (requires `credentials.json` + a one-time browser login):

@@ -118,6 +118,25 @@ class PlannedItem(ExtractedItem):
     still_open_from_last_time: list[str] = Field(default_factory=list)
     needs_review: bool = False
 
+    def resolved_due_date(self) -> str | None:
+        return self.due_date_iso or self.proposed_due_date_iso
+
+    def description_text(self) -> str:
+        """Shared event/draft description text — used identically by the
+        Calendar tool and the .ics export so both stay in sync."""
+        owner = self.owner or self.proposed_owner or "unassigned"
+        lines = [
+            f"Owner: {owner}",
+            f"Priority: {self.priority.value}",
+            f"Confidence: {self.confidence:.2f}",
+            "",
+            "Source quote:",
+            self.source_quote,
+        ]
+        if self.planning_notes:
+            lines.extend(["", "Planning notes:", self.planning_notes])
+        return "\n".join(lines)
+
 
 class PlannedItemList(BaseModel):
     items: list[PlannedItem]
