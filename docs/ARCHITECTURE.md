@@ -4,7 +4,7 @@ Full system design, diagrams, and rationale. See [../README.md](../README.md) fo
 
 ## Diagram
 
-Data only moves downward; extraction and planning are **two separate LLM calls** (both Gemini, forced function calling), plus an optional third diagram-synthesis call.
+Data only moves downward; extraction and planning are **two separate LLM calls** (both Gemini, forced function calling), plus an optional third summary/diagram-synthesis call.
 
 ```mermaid
 flowchart TD
@@ -15,7 +15,8 @@ flowchart TD
     MEM[4. Memory - SQLite]
     CAL[5a. Tool: Google Calendar]
     GMAIL[5b. Tool: Gmail draft]
-    DIAG["6. Diagram synthesis - Gemini call #3 (optional, multimodal)"]
+    ICS[5c. Tool: .ics export]
+    SUM["6. Summary + diagrams - Gemini call #3 (optional, multimodal, 0-N diagrams)"]
 
     UI --> ING
     ING -->|speaker turns + screenshots| EXT
@@ -24,10 +25,12 @@ flowchart TD
     MEM -->|open items from last time| UI
     PLAN --> CAL
     PLAN --> GMAIL
+    PLAN --> ICS
     CAL -->|event or dry-run payload| UI
     GMAIL -->|draft or dry-run preview, never sent| UI
-    ING -.->|optional| DIAG
-    DIAG -.->|Mermaid diagram| UI
+    ICS -->|downloadable file, no API key| UI
+    ING -.->|optional| SUM
+    SUM -.->|text summary + Mermaid diagram(s)| UI
     ING --> MEM
 ```
 
@@ -51,7 +54,7 @@ transcript .txt/.vtt/.srt/paste + screenshots .png/.jpg
  Streamlit table grouped by owner, source-tagged (🖼️/📝)
 ```
 
-This maps directly onto the course's own "LLM Agent: Key Components" diagram (LLM Core → Planning & Reasoning → Memory → Tools → Environment/Actions): Ingestion/screenshots = observation; Extraction = LLM Core; Planning = Planning & Reasoning; SQLite = Memory; Calendar/Gmail/diagram = Tools; event/draft creation = Agent Actions.
+This maps directly onto the course's own "LLM Agent: Key Components" diagram (LLM Core → Planning & Reasoning → Memory → Tools → Environment/Actions): Ingestion/screenshots = observation; Extraction = LLM Core; Planning = Planning & Reasoning; SQLite = Memory; Calendar/Gmail/.ics/summary = Tools; event/draft/file creation = Agent Actions.
 
 ## Design decisions
 
@@ -65,7 +68,7 @@ After extraction, **relative dates are resolved in Python** against the meeting 
 
 **Multimodal extraction (screenshots).** Screenshots (slides, whiteboards, Kanban boards) are sent as real image content blocks alongside the transcript text in the *same* Gemini call — genuine multimodal usage, not OCR bolted on. Each extracted item is tagged `source: "transcript" | "screenshot"`, which survives the planning/dedup pass (cross-checked against the locally-tracked value rather than blindly trusted from the LLM) and SQLite persistence. The system prompt explicitly instructs the model to treat screenshot content as a mandatory separate pass, independent of transcript length — a busy transcript was found to silently crowd out screenshot content entirely under the forced-schema constraint before this instruction was added (see known failure cases below).
 
-**Diagram synthesis is optional and off by default.** It's a third LLM call, and not every meeting has anything diagram-worthy — the model is instructed to say so (`has_diagram: false`) rather than invent structure, same discipline as action-item extraction.
+**Summary + diagram synthesis is optional and off by default.** It's a third LLM call, and not every meeting has anything worth summarizing or diagramming — the model is instructed to say so (`summary: null`, `diagrams: []`) rather than invent content, same discipline as action-item extraction. Critically, the *number* of diagrams (0, 1, or more) is model-decided, not hardcoded — if there are genuinely two distinct describable structures (e.g. a system architecture and a separate Kanban board), both come back as separate entries. Each rendered diagram gets real client-side SVG/PNG download buttons — mermaid.js already produces the SVG in the browser, the buttons just save that output, no server round-trip.
 
 **Every external-write tool has a dry-run mode.** Calendar and Gmail both default to dry-run, printing the exact API payload/MIME preview instead of executing. Gmail is additionally *structurally* draft-only — the module only ever calls `drafts().create`, never `send`.
 
@@ -80,4 +83,4 @@ After extraction, **relative dates are resolved in Python** against the meeting 
 - **Rare character-substitution glitch, observed once.** During testing, one extraction run produced `source_quote: "I'لل schedule the stakeholder review..."` — the model substituted "ll" with Arabic script (لل) inside otherwise-correct English text. Reran the same extraction 5 more times immediately after with no recurrence, so this looks like a rare token-level hallucination rather than a systemic bug — not something a code fix meaningfully addresses. Worth a quick visual gut-check on the actual demo transcript's extracted quotes before presenting, on the off chance it recurs.
 - **Multimodal extraction can be crowded out by a busy transcript.** Found while building the demo assets: a screenshot with several actionable cards, paired with a transcript that already had 7 spoken items, was silently dropped entirely (0 screenshot-sourced items) under the forced-schema extraction call — even though the model could correctly describe the same image in a plain (non-schema) request. Fixed by explicitly instructing the system prompt to treat screenshot extraction as a mandatory separate pass; reverified twice on the exact failing case (11/11 items correctly extracted both times). An even busier transcript + screenshot combination than tested here could theoretically still trigger this — worth a spot-check if the real demo transcript/screenshot pairing differs a lot from `samples/01_sprint_planning.txt` + `samples/04_kanban_board.png`.
 - **Gemini free-tier transient errors.** `503 UNAVAILABLE` (overloaded) occurred repeatedly during development. Mitigated with retry-with-backoff (`meetingpilot/llm.py`), including a retry path for a successful-but-truncated response missing the tool call (hit once on a large multi-item planning payload). A sustained Gemini outage during a live demo would still be a hard failure — there is no fallback for the LLM layer itself, unlike Calendar/Gmail (dry-run) or `.ics` export.
-- **Gemini free-tier *daily* quota (`429 RESOURCE_EXHAUSTED`) is a real demo-day risk, not just a transient error.** Both `gemini-3.5-flash` and `gemini-3.6-flash` are capped at 20 requests/day per API key (each real run costs 2+ calls: extraction, planning, optionally diagram synthesis) — hit for real during development on 2026-08-20. The existing retry logic treats 429 as retryable, which is only correct for short rate-limit bursts; for a genuinely exhausted daily quota, retrying just fails again a few seconds later for no benefit (Gemini's 429 response doesn't distinguish the two cases in a way the client currently checks). **Mitigated (2026-08-20) by switching the default model to `gemini-flash-lite-latest`** — Google doesn't publish exact free-tier RPD per model, but Flash-Lite tiers are built for high-volume use and are historically the most quota-generous free tier; a full extraction+planning+Calendar+Gmail+.ics run was re-verified live on this model with no quota error. Still worth getting a fresh API key close to demo day as a backstop, since "much higher" isn't a documented guarantee of "unlimited."
+- **Gemini free-tier *daily* quota (`429 RESOURCE_EXHAUSTED`) is a real demo-day risk, not just a transient error.** Both `gemini-3.5-flash` and `gemini-3.6-flash` are capped at 20 requests/day per API key (each real run costs 2+ calls: extraction, planning, optionally the summary/diagram call) — hit for real during development on 2026-08-20. The existing retry logic treats 429 as retryable, which is only correct for short rate-limit bursts; for a genuinely exhausted daily quota, retrying just fails again a few seconds later for no benefit (Gemini's 429 response doesn't distinguish the two cases in a way the client currently checks). **Mitigated (2026-08-20) by switching the default model to `gemini-flash-lite-latest`** — Google doesn't publish exact free-tier RPD per model, but Flash-Lite tiers are built for high-volume use and are historically the most quota-generous free tier; a full extraction+planning+Calendar+Gmail+.ics run was re-verified live on this model with no quota error. Still worth getting a fresh API key close to demo day as a backstop, since "much higher" isn't a documented guarantee of "unlimited."

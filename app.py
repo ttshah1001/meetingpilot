@@ -71,12 +71,13 @@ def main() -> None:
         value=True,
         help="Shows the exact draft MIME content instead of creating a real Gmail draft. Never sends either way.",
     )
-    generate_diagram_from_content = st.sidebar.checkbox(
-        "Generate diagram from content (experimental)",
+    generate_summary_from_content = st.sidebar.checkbox(
+        "Generate summary + diagrams (experimental)",
         value=False,
-        help="Extra LLM call: reconstructs a Mermaid diagram from a whiteboard/flowchart screenshot or a "
-        "process described in the transcript. Off by default — costs an extra call and not every meeting "
-        "has anything diagram-worthy.",
+        help="Extra LLM call: a short text summary plus zero or more Mermaid diagrams reconstructed from "
+        "a whiteboard/flowchart screenshot or a process described in the transcript. The model decides how "
+        "many diagrams are warranted (0, 1, or more) — off by default since it's an extra call and not "
+        "every meeting has anything summary/diagram-worthy.",
     )
     my_name_filter = st.sidebar.text_input(
         "Your name (optional)",
@@ -160,8 +161,8 @@ def main() -> None:
             if screenshots
             else "Extraction (LLM #1), then planning (LLM #2)…"
         )
-        if generate_diagram_from_content:
-            spinner_text += " Also checking for a diagram (LLM #3)…"
+        if generate_summary_from_content:
+            spinner_text += " Also generating a summary + diagrams (LLM #3)…"
         with st.spinner(spinner_text):
             st.session_state["result"] = process_meeting(
                 document=document,
@@ -169,7 +170,7 @@ def main() -> None:
                 title=meeting_title,
                 persist=True,
                 screenshots=screenshots or None,
-                generate_diagram_from_content=generate_diagram_from_content,
+                generate_summary_from_content=generate_summary_from_content,
             )
             st.session_state["last_payloads"] = []
             st.session_state["last_gmail_drafts"] = []
@@ -190,14 +191,18 @@ def main() -> None:
             "are listed in the sidebar."
         )
 
-    if result.diagram is not None:
-        if result.diagram.has_diagram:
-            st.subheader(f"Diagram: {result.diagram.title or 'Reconstructed from meeting content'}")
-            _render_mermaid(result.diagram.mermaid_code)
-            with st.expander("Mermaid source"):
-                st.code(result.diagram.mermaid_code, language="text")
-        else:
-            st.caption("Diagram check: nothing describable found in the transcript/screenshots.")
+    if result.summary is not None:
+        if result.summary.summary:
+            st.subheader("Summary")
+            st.write(result.summary.summary)
+        if result.summary.diagrams:
+            for i, diagram in enumerate(result.summary.diagrams):
+                st.subheader(f"Diagram: {diagram.title}")
+                _render_mermaid(diagram.mermaid_code, key=str(i), file_stem=diagram.title)
+                with st.expander("Mermaid source"):
+                    st.code(diagram.mermaid_code, language="text")
+        elif not result.summary.summary:
+            st.caption("Summary check: nothing meaningfully describable found in the transcript/screenshots.")
 
     st.subheader("Action items (grouped by owner)")
     grouped: dict[str, list] = {}
@@ -330,31 +335,84 @@ def main() -> None:
     )
 
 
-def _render_mermaid(mermaid_code: str) -> None:
-    """Render Mermaid syntax via mermaid.js loaded from a CDN.
+def _render_mermaid(mermaid_code: str, *, key: str, file_stem: str = "diagram") -> None:
+    """Render Mermaid syntax via mermaid.js loaded from a CDN, with real
+    client-side SVG/PNG download buttons.
 
     This Streamlit version has no native Mermaid support, so the diagram
-    is rendered inside an embedded HTML component instead.
+    is rendered inside an embedded HTML component instead. mermaid.js
+    already produces the SVG in the browser — the download buttons just
+    save that output, no server round-trip needed.
     """
     safe_code = json.dumps(mermaid_code)
+    safe_stem = json.dumps(_slugify(file_stem))
+    node_id = f"mp-diagram-{key}"
     components.html(
         f"""
-        <div class="mermaid" id="mp-diagram"></div>
+        <div class="mermaid" id="{node_id}"></div>
+        <div id="{node_id}-controls" style="display:none; margin-top:8px;">
+            <button id="{node_id}-svg-btn">Download SVG</button>
+            <button id="{node_id}-png-btn">Download PNG</button>
+        </div>
         <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
         <script>
             mermaid.initialize({{ startOnLoad: false, theme: "neutral" }});
             const code = {safe_code};
-            mermaid.render("mp-diagram-svg", code).then(({{ svg }}) => {{
-                document.getElementById("mp-diagram").innerHTML = svg;
+            const stem = {safe_stem};
+            const container = document.getElementById("{node_id}");
+            const controls = document.getElementById("{node_id}-controls");
+
+            function downloadBlob(blob, filename) {{
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            }}
+
+            mermaid.render("{node_id}-svg", code).then(({{ svg }}) => {{
+                container.innerHTML = svg;
+                controls.style.display = "block";
+
+                document.getElementById("{node_id}-svg-btn").onclick = () => {{
+                    downloadBlob(new Blob([svg], {{ type: "image/svg+xml" }}), stem + ".svg");
+                }};
+
+                document.getElementById("{node_id}-png-btn").onclick = () => {{
+                    const img = new Image();
+                    const svgUrl = URL.createObjectURL(
+                        new Blob([svg], {{ type: "image/svg+xml;charset=utf-8" }})
+                    );
+                    img.onload = () => {{
+                        const scale = 2; // render at 2x for a crisper PNG
+                        const canvas = document.createElement("canvas");
+                        canvas.width = img.naturalWidth * scale;
+                        canvas.height = img.naturalHeight * scale;
+                        const ctx = canvas.getContext("2d");
+                        ctx.fillStyle = "white";
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        URL.revokeObjectURL(svgUrl);
+                        canvas.toBlob((blob) => downloadBlob(blob, stem + ".png"));
+                    }};
+                    img.src = svgUrl;
+                }};
             }}).catch((err) => {{
-                document.getElementById("mp-diagram").innerHTML =
-                    "<pre>Mermaid render error: " + err + "</pre>";
+                container.innerHTML = "<pre>Mermaid render error: " + err + "</pre>";
             }});
         </script>
         """,
-        height=420,
+        height=460,
         scrolling=True,
     )
+
+
+def _slugify(text: str) -> str:
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "diagram"
 
 
 def _do_push(item, *, dry_run: bool, calendar_id: str | None = None) -> bool:

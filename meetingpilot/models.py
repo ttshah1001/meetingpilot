@@ -142,12 +142,20 @@ class PlannedItemList(BaseModel):
     items: list[PlannedItem]
 
 
-class DiagramResult(BaseModel):
-    """Output of the optional diagram-synthesis LLM call."""
+class Diagram(BaseModel):
+    title: str
+    mermaid_code: str
 
-    has_diagram: bool
-    title: str | None = None
-    mermaid_code: str | None = None
+
+class MeetingSummary(BaseModel):
+    """Output of the optional summary + diagram-synthesis LLM call.
+
+    `diagrams` length is model-decided (0, 1, or more) based on what's
+    actually describable in the content -- never a fixed count.
+    """
+
+    summary: str | None = None
+    diagrams: list[Diagram] = Field(default_factory=list)
 
 
 class OpenMemoryItem(BaseModel):
@@ -170,7 +178,7 @@ class PipelineResult(BaseModel):
     extracted: list[ExtractedItem]
     planned: list[PlannedItem]
     open_from_previous: list[OpenMemoryItem] = Field(default_factory=list)
-    diagram: DiagramResult | None = None
+    summary: MeetingSummary | None = None
 
     def to_console_dict(self) -> dict[str, Any]:
         return {
@@ -181,7 +189,7 @@ class PipelineResult(BaseModel):
             "extracted": [item.model_dump() for item in self.extracted],
             "planned": [item.model_dump() for item in self.planned],
             "open_from_previous": [item.model_dump() for item in self.open_from_previous],
-            "diagram": self.diagram.model_dump() if self.diagram else None,
+            "summary": self.summary.model_dump() if self.summary else None,
         }
 
 

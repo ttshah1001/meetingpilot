@@ -52,9 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stop after LLM call #1 and print extracted JSON (no planning, no DB).",
     )
     parser.add_argument(
-        "--diagram",
+        "--summary",
         action="store_true",
-        help="Also run the optional diagram-synthesis LLM call (Mermaid, from screenshots/transcript).",
+        help="Also run the optional summary + diagram-synthesis LLM call (short text summary plus "
+        "zero or more Mermaid diagrams, model-decided, from screenshots/transcript).",
     )
     parser.add_argument(
         "--no-save",
@@ -132,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         title=args.title or Path(args.transcript).stem if args.transcript else "stdin",
         persist=not args.no_save,
         screenshots=screenshots or None,
-        generate_diagram_from_content=args.diagram,
+        generate_summary_from_content=args.summary,
     )
     print(json.dumps(result.to_console_dict(), indent=2, default=str))
 

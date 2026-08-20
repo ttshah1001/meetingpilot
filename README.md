@@ -1,6 +1,6 @@
 # MeetingPilot
 
-MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items with owners, due dates, priorities, source quotes, and confidence scores. It stores them in a local SQLite database so later meetings can surface work that is still open, and can push a task to Google Calendar, draft it in Gmail (both dry-run by default), or export it as a `.ics` file (no API keys or network required — the fallback if Google access or wifi isn't available). It can also optionally reconstruct a Mermaid diagram from a whiteboard/flowchart screenshot or a process described in the transcript.
+MeetingPilot is a small agent that reads a meeting transcript (pasted text, `.txt`, `.vtt`, or `.srt`) — and, optionally, screenshots taken during the meeting (slides, whiteboards, Kanban boards) — and turns it into tracked action items with owners, due dates, priorities, source quotes, and confidence scores. It stores them in a local SQLite database so later meetings can surface work that is still open, and can push a task to Google Calendar, draft it in Gmail (both dry-run by default), or export it as a `.ics` file (no API keys or network required — the fallback if Google access or wifi isn't available). It can also optionally generate a short meeting summary plus zero or more Mermaid diagrams — the model decides how many, if any, are actually warranted — reconstructed from a whiteboard/flowchart screenshot or a process described in the transcript, downloadable as SVG or PNG.
 
 Full architecture (diagrams, design rationale, known limitations) is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). See [CHANGELOG.md](CHANGELOG.md) for what changed and when.
 
@@ -28,7 +28,7 @@ Full architecture (diagrams, design rationale, known limitations) is in [docs/AR
    pip install -e ".[dev]"
    ```
 
-3. **LLM API key (required for extraction, planning, and diagram synthesis).** MeetingPilot uses the Google Gemini API (free tier, AI Studio) with forced function calling (structured JSON), not free-text parsing.
+3. **LLM API key (required for extraction, planning, and the optional summary/diagram call).** MeetingPilot uses the Google Gemini API (free tier, AI Studio) with forced function calling (structured JSON), not free-text parsing.
 
    - Create a free API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) — no credit card required.
    - Copy the example env file and paste the key:
@@ -67,7 +67,7 @@ From the project root, with the virtualenv managed by uv:
 uv run streamlit run app.py
 ```
 
-Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate diagram from content" in the sidebar to also try the Mermaid feature. Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available.
+Drop a transcript + screenshots together in the uploader (or load a sample), leave Calendar/Gmail dry-run checked unless you completed Google OAuth, and click **Process Meeting**. Toggle "Generate summary + diagrams" in the sidebar to also try that feature — each rendered diagram has real "Download SVG"/"Download PNG" buttons (client-side, via the browser, no server round-trip). Each item has a "Download .ics" button — that path needs no Google setup at all, useful if OAuth or wifi isn't available. There's also a "Your name" field to limit bulk push/export to your own tasks instead of the whole team's.
 
 **CLI — extraction only (LLM call #1, JSON to stdout, no DB):**
 
@@ -78,7 +78,7 @@ uv run python -m meetingpilot \
   --extract-only
 ```
 
-**CLI — full pipeline (ingest → extract → plan → SQLite), with screenshots + diagram synthesis** (`samples/04_kanban_board.png` is a ready-made sample screenshot for trying this):
+**CLI — full pipeline (ingest → extract → plan → SQLite), with screenshots + summary/diagrams** (`samples/04_kanban_board.png` is a ready-made sample screenshot for trying this):
 
 ```bash
 uv run python -m meetingpilot \
@@ -86,7 +86,7 @@ uv run python -m meetingpilot \
   --meeting-date 2026-08-19 \
   --title "Sprint planning" \
   --screenshot samples/04_kanban_board.png \
-  --diagram
+  --summary
 ```
 
 **CLI — Calendar/Gmail dry-run payloads (no live Google calls):**
@@ -133,7 +133,7 @@ Equivalent with venv: `pytest -q`.
 
 ## Acknowledgments
 
-- [Google Gemini API](https://ai.google.dev/) — structured function calling for extraction, planning, and diagram synthesis (free tier via AI Studio)
+- [Google Gemini API](https://ai.google.dev/) — structured function calling for extraction, planning, and the optional summary/diagram call (free tier via AI Studio)
 - [Google Calendar API](https://developers.google.com/calendar) and [Gmail API](https://developers.google.com/gmail/api) via `google-api-python-client` and `google-auth-oauthlib`
 - [Mermaid](https://mermaid.js.org/) for diagram rendering
 - [Streamlit](https://streamlit.io/), [Pydantic](https://docs.pydantic.dev/), [SQLAlchemy](https://www.sqlalchemy.org/), [python-dateutil](https://dateutil.readthedocs.io/)

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from meetingpilot.config import get_settings
-from meetingpilot.diagram import generate_diagram
+from meetingpilot.summary import generate_summary
 from meetingpilot.extraction import extract_action_items
 from meetingpilot.ingestion import ingest_file, ingest_text
 from meetingpilot.memory import (
@@ -52,14 +52,14 @@ def process_meeting(
     db_path: Optional[str] = None,
     default_owner: Optional[str] = None,
     screenshots: Optional[list[Screenshot]] = None,
-    generate_diagram_from_content: bool = False,
+    generate_summary_from_content: bool = False,
 ) -> PipelineResult:
     extracted = extract_action_items(document, meeting_date, screenshots=screenshots)
     planned = plan_action_items(extracted, meeting_date, default_owner=default_owner)
 
-    diagram = None
-    if generate_diagram_from_content:
-        diagram = generate_diagram(document, screenshots=screenshots)
+    summary = None
+    if generate_summary_from_content:
+        summary = generate_summary(document, screenshots=screenshots)
 
     owners = [p.owner for p in planned if p.owner]
     previous = list_open_for_owners(owners, db_path=db_path) if persist else []
@@ -88,7 +88,7 @@ def process_meeting(
         extracted=extracted,
         planned=planned,
         open_from_previous=previous,
-        diagram=diagram,
+        summary=summary,
     )
 
 
@@ -100,7 +100,7 @@ def process_path(
     persist: bool = True,
     db_path: Optional[str] = None,
     screenshots: Optional[list[Screenshot]] = None,
-    generate_diagram_from_content: bool = False,
+    generate_summary_from_content: bool = False,
 ) -> PipelineResult:
     document = ingest_file(path)
     return process_meeting(
@@ -110,7 +110,7 @@ def process_path(
         persist=persist,
         db_path=db_path,
         screenshots=screenshots,
-        generate_diagram_from_content=generate_diagram_from_content,
+        generate_summary_from_content=generate_summary_from_content,
     )
 
 
@@ -123,7 +123,7 @@ def process_pasted_text(
     persist: bool = True,
     db_path: Optional[str] = None,
     screenshots: Optional[list[Screenshot]] = None,
-    generate_diagram_from_content: bool = False,
+    generate_summary_from_content: bool = False,
 ) -> PipelineResult:
     document = ingest_text(text, source_name=source_name)
     return process_meeting(
@@ -133,7 +133,7 @@ def process_pasted_text(
         persist=persist,
         db_path=db_path,
         screenshots=screenshots,
-        generate_diagram_from_content=generate_diagram_from_content,
+        generate_summary_from_content=generate_summary_from_content,
     )
 
 

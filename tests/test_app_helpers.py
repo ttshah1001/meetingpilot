@@ -1,8 +1,8 @@
-"""Streamlit UI helper logic — the bulk-action owner filter."""
+"""Streamlit UI helper logic — the bulk-action owner filter and diagram filename slugs."""
 
 from __future__ import annotations
 
-from app import _filter_by_owner
+from app import _filter_by_owner, _slugify
 from meetingpilot.models import PlannedItem, Priority
 
 
@@ -38,3 +38,9 @@ def test_matches_proposed_owner_too():
 def test_no_match_returns_empty():
     items = [_item("A", "Marcus")]
     assert _filter_by_owner(items, "nobody-here") == []
+
+
+def test_slugify_produces_filesystem_safe_names():
+    assert _slugify("Checkout Flow!!") == "checkout-flow"
+    assert " " not in _slugify("Kanban Board — Sprint 12")
+    assert _slugify("") == "diagram"
