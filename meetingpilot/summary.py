@@ -24,7 +24,7 @@ SUMMARY_SCHEMA: dict[str, Any] = {
     "properties": {
         "summary": {
             "type": ["string", "null"],
-            "description": "A 2-4 sentence plain-English summary of what was discussed and decided. Null only if the transcript is too trivial/short to meaningfully summarize.",
+            "description": "A detailed, multi-paragraph plain-English summary (roughly 2-3 short paragraphs) covering what was discussed, key decisions made, who owns what at a narrative level, and any notable context, tradeoffs, or open questions raised. More thorough than a one-liner -- write enough that someone who missed the meeting could understand what happened without reading the transcript. Null only if the transcript is too trivial/short to meaningfully summarize.",
         },
         "diagrams": {
             "type": "array",
@@ -50,8 +50,14 @@ SYSTEM = """You look at a meeting transcript and any attached screenshots
 things: a short summary, and zero or more diagrams.
 
 Rules:
-- summary: 2-4 sentences, plain English, covering what was actually discussed
-  and decided. Null only if there's truly nothing to summarize.
+- summary: a detailed, multi-paragraph plain-English summary (roughly 2-3
+  short paragraphs) -- not a one-liner. Cover what was actually discussed,
+  key decisions, who owns what at a narrative level, and any notable
+  context, tradeoffs, or open questions. Write enough that someone who
+  missed the meeting could understand what happened without reading the
+  full transcript. Still faithful to what was said -- do not pad with
+  invented detail just to sound longer. Null only if there's truly nothing
+  to summarize.
 - diagrams: do NOT invent structure that isn't there -- same discipline as
   action-item extraction, a faithful read, not a guess. If nothing is
   describable, return an empty list. If something is describable (e.g. a

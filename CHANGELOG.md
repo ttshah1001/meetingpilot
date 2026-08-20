@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 - Transcript chunking for long meetings — planned, not yet built.
 
+## [0.5.1] - 2026-08-20
+
+### Changed
+- Added `.streamlit/config.toml` with a real color theme (dark base, violet primary) instead of Streamlit's plain default.
+- Reorganized the Streamlit sidebar: "Your name" and "Calendar for live events" moved to the top with inline explanations of why to set them; the three dry-run toggles and the summary/diagram toggle moved into a collapsed "Testing & advanced options" section — client-facing controls up top, testing knobs tucked away but still reachable.
+- `summary.py`'s meeting summary is now 2-3 short paragraphs instead of 2-4 sentences, more useful for someone who missed the meeting — verified it stays faithful to the transcript rather than padding with invented detail.
+
 ## [0.5.0] - 2026-08-20
 
 ### Added

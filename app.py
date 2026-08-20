@@ -54,43 +54,28 @@ def main() -> None:
     st.caption("Transcript → action items → memory → calendar")
 
     settings = get_settings()
-    dry_run = st.sidebar.checkbox(
-        "Calendar dry-run (recommended for demo)",
-        value=True,
-        help="Prints the exact Google Calendar API payload instead of creating events.",
+
+    st.sidebar.subheader("Your setup")
+    my_name_filter = st.sidebar.text_input(
+        "Your name",
+        placeholder="e.g. Sai",
+        help="Matched case-insensitively against each item's owner.",
+    ).strip()
+    st.sidebar.caption(
+        "Why: with this set, the bulk **\"Push all\"** and **\"Download all\"** buttons only grab tasks "
+        "assigned to you — not your whole team's. Per-item buttons on individual cards always work "
+        "regardless of this field."
     )
     calendar_id = st.sidebar.text_input(
-        "Calendar ID for live pushes (optional)",
+        "Calendar for live events",
         placeholder="primary",
-        help="Only matters when dry-run is off. Leave blank to push to your main calendar. Paste a "
-        "dedicated calendar's ID (Google Calendar → that calendar's Settings → 'Integrate calendar' → "
-        "Calendar ID) to keep test events separate from your real one — you can hide them with one "
-        "checkbox afterward instead of deleting each event by hand.",
+        help="Google Calendar → that calendar's Settings → 'Integrate calendar' → Calendar ID.",
     ).strip() or None
-    gmail_dry_run = st.sidebar.checkbox(
-        "Gmail dry-run (recommended for demo)",
-        value=True,
-        help="Shows the exact draft MIME content instead of creating a real Gmail draft. Never sends either way.",
+    st.sidebar.caption(
+        "Why: leave blank to use your main calendar. Paste a dedicated calendar's ID instead to keep "
+        "test/demo events separate from your real one — hide or delete them all with one click later "
+        "instead of hunting down individual events."
     )
-    tasks_dry_run = st.sidebar.checkbox(
-        "Google Tasks dry-run (recommended for demo)",
-        value=True,
-        help="Prints the exact Google Tasks API payload instead of creating a real, checkable to-do.",
-    )
-    generate_summary_from_content = st.sidebar.checkbox(
-        "Generate summary + diagrams (experimental)",
-        value=False,
-        help="Extra LLM call: a short text summary plus zero or more Mermaid diagrams reconstructed from "
-        "a whiteboard/flowchart screenshot or a process described in the transcript. The model decides how "
-        "many diagrams are warranted (0, 1, or more) — off by default since it's an extra call and not "
-        "every meeting has anything summary/diagram-worthy.",
-    )
-    my_name_filter = st.sidebar.text_input(
-        "Your name (optional)",
-        help="If set, 'Push all to Calendar' and 'Download all as .ics' only include items owned by you "
-        "(matched case-insensitively against owner/proposed owner) — not your whole team's tasks. Per-item "
-        "buttons on individual cards are unaffected.",
-    ).strip()
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Open items from previous meetings")
@@ -109,6 +94,37 @@ def main() -> None:
             )
     else:
         st.sidebar.info("No open items in memory yet. Process a meeting to start tracking.")
+
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("⚙️ Testing & advanced options"):
+        st.caption(
+            "These control whether actions touch Google's real systems. Dry-run means safe: "
+            "nothing is created, you just see the exact payload. Turn a toggle off only when you "
+            "actually want that action to happen for real."
+        )
+        dry_run = st.checkbox(
+            "Calendar dry-run",
+            value=True,
+            help="Prints the exact Google Calendar API payload instead of creating events.",
+        )
+        gmail_dry_run = st.checkbox(
+            "Gmail dry-run",
+            value=True,
+            help="Shows the exact draft MIME content instead of creating a real Gmail draft. Never sends either way.",
+        )
+        tasks_dry_run = st.checkbox(
+            "Google Tasks dry-run",
+            value=True,
+            help="Prints the exact Google Tasks API payload instead of creating a real, checkable to-do.",
+        )
+        generate_summary_from_content = st.checkbox(
+            "Generate summary + diagrams",
+            value=False,
+            help="Extra LLM call: a detailed text summary plus zero or more Mermaid diagrams reconstructed "
+            "from a whiteboard/flowchart screenshot or a process described in the transcript. The model "
+            "decides how many diagrams are warranted (0, 1, or more) — off by default since it's an extra "
+            "call and not every meeting has anything summary/diagram-worthy.",
+        )
 
     meeting_title = st.text_input("Meeting title", value="Weekly sync")
     meeting_date = st.date_input("Meeting date", value=date.today())
