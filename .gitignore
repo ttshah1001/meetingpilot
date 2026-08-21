@@ -27,3 +27,11 @@ htmlcov/
 .idea/
 .vscode/
 .streamlit/secrets.toml
+
+# AI agent tooling caches (not project code)
+.agents/
+.claude/
+_bmad/
+
+# Local launcher log
+scripts/streamlit.log
