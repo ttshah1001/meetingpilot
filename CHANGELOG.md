@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 - Transcript chunking for long meetings — planned, not yet built.
 
+## [0.7.1] - 2026-08-21
+
+### Fixed
+- **Real bug, hit live on real demo transcripts**: LLM-generated prose (summary text, source quotes, planning notes, owner names, due-date text) was rendered directly via `st.write()`/`st.markdown()` without escaping. Underscore-heavy phrasing got read as italic spans (swallowing the underscores and the spaces between words), and paired dollar amounts like `$85k...$95k` got read as inline LaTeX math. Added `_escape_markdown()` (`app.py`) and applied it at every site rendering raw LLM/extraction text — the summary, source quotes, merged quotes, "still open from last time" rows, planning notes, the owner group header, due-date text, and proposed owner.
+- **Found while fixing the above**: `_render_chat_bubble()` interpolated raw LLM/user chat text directly into an HTML block with `unsafe_allow_html=True`, unescaped — an HTML/script injection path, not just a display bug. Now `html.escape()`'d (newlines converted to `<br>` to preserve line breaks).
+- **Mermaid diagrams repeatedly crashed client-side on real transcripts** ("Syntax error in text") — the model was generating invalid Mermaid (unquoted labels containing colons/spaces/parens, `direction` jammed onto the same line as a `subgraph` header). Added explicit syntax-hygiene rules to both the initial generation and refine prompts (`meetingpilot/summary.py`): one statement per line, quote any label with punctuation, alphanumeric-only node/subgraph IDs, matching `end` per subgraph. Reduces but does not eliminate the failure rate, since it's still free-form model output.
+
 ## [0.7.0] - 2026-08-21
 
 ### Added

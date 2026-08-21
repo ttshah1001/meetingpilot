@@ -182,7 +182,7 @@ Every number below was produced by actually running the pipeline against real da
 - **538 → 159** — Average transcript-to-summary compression across 5 real ~500-word transcripts (473-600 words each), live-tested.
 - **159 → 35 (78%)** — Average further reduction when the chat asked to shorten the summary, tested across 15 of the 16 `Sample_DATA` meetings (1 skipped on a transient per-minute rate limit, not a failure) — consistent with the smaller 3-sample run (123 → 35, also ~78%), so this compression rate holds up at scale, not cherry-picked.
 - **3** — Output paths per item: live push, dry-run preview, or fully offline `.ics` export.
-- **9** — Shipped versions, v0.1.0 → v0.7.0 (`CHANGELOG.md`), each with a dated entry of what changed and why.
+- **10** — Shipped versions, v0.1.0 → v0.7.1 (`CHANGELOG.md`), each with a dated entry of what changed and why.
 
 ---
 
