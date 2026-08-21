@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -220,7 +222,7 @@ def main() -> None:
     if result.summary is not None:
         if result.summary.summary:
             st.subheader("Summary")
-            st.write(result.summary.summary)
+            st.markdown(_escape_markdown(result.summary.summary))
         if result.summary.diagrams:
             for i, diagram in enumerate(result.summary.diagrams):
                 st.subheader(f"Diagram: {diagram.title}")
@@ -522,6 +524,21 @@ def _slugify(text: str) -> str:
     return slug or "diagram"
 
 
+_MARKDOWN_SPECIAL_CHARS = re.compile(r"([\\`*_$])")
+
+
+def _escape_markdown(text: str) -> str:
+    """Escape characters Streamlit's markdown renderer treats as formatting.
+
+    LLM-generated prose is plain text, not markdown source -- without this,
+    underscore-heavy phrasing gets read as italic spans (swallowing the
+    underscores and any spaces between them), and paired dollar amounts
+    (e.g. "$85k...$95k") get read as inline LaTeX math. Real newlines in the
+    text are untouched, so paragraph breaks still render normally.
+    """
+    return _MARKDOWN_SPECIAL_CHARS.sub(r"\\\1", text)
+
+
 def _render_chat_bubble(role: str, content: str) -> None:
     """Custom-styled chat bubble, not relying on Streamlit's internal
     st.chat_message DOM structure (which varies by version) for the
@@ -530,6 +547,7 @@ def _render_chat_bubble(role: str, content: str) -> None:
     bg = "#F0C9A8" if is_user else "#FDF8EE"
     label = "You" if is_user else "MeetingPilot"
     align = "flex-end" if is_user else "flex-start"
+    safe_content = html.escape(content).replace("\n", "<br>")
     st.markdown(
         f"""
         <div style="display:flex; justify-content:{align}; margin-bottom:10px;">
@@ -538,7 +556,7 @@ def _render_chat_bubble(role: str, content: str) -> None:
                 <div style="font-size:0.75rem; font-weight:600; color:#5C3D2E; margin-bottom:4px;">
                     {label}
                 </div>
-                <div style="color:#2C1810;">{content}</div>
+                <div style="color:#2C1810;">{safe_content}</div>
             </div>
         </div>
         """,

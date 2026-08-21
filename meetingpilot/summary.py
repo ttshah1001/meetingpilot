@@ -85,6 +85,21 @@ Rules:
   warranted -- usually 0, sometimes 1, occasionally 2 if there are genuinely
   separate describable structures. Never force a fixed count.
 - Keep node labels short and derived from what was actually said/shown.
+- Mermaid syntax hygiene (violations here crash the render client-side --
+  follow these exactly):
+  - Every statement (node, edge, subgraph header, `end`, `direction`) goes
+    on its OWN line. Never put two statements on one line, and never put
+    `direction` on the same line as a `subgraph` header.
+  - Any node/subgraph label containing a space, colon, parenthesis, dash,
+    slash, or dollar sign MUST be wrapped in double quotes:
+    `subgraph launch["Launch: Aug 20-31"]`, not
+    `subgraph Launch[Launch: Aug 20-31]`.
+  - Node/subgraph IDs (the bare word before `[` or `(`) must be short
+    alphanumeric identifiers with no spaces or punctuation -- put the actual
+    human-readable text inside the quoted label, not in the ID.
+  - Every `subgraph` must have a matching `end` on its own line.
+  - Do not use literal double-quote characters inside a quoted label; drop
+    them or use a single quote instead.
 - Call submit_summary exactly once.
 """
 
@@ -134,7 +149,14 @@ fits the user's message and call exactly one:
   as the original summary. If feedback is about one diagram, revise that
   diagram's title or Mermaid code; leave other diagrams unchanged unless
   told otherwise. Call it with the FULL updated summary and FULL updated
-  diagrams list, not just the part that changed.
+  diagrams list, not just the part that changed. Any Mermaid code you write
+  or edit follows the same syntax hygiene as the initial generation: one
+  statement per line (never `direction` on the same line as a `subgraph`
+  header), any label with a space/colon/parenthesis/dash/slash/dollar sign
+  wrapped in double quotes, short alphanumeric-only node/subgraph IDs with
+  the human-readable text inside the quoted label instead, every `subgraph`
+  closed with a matching `end` on its own line, and no literal double-quote
+  characters inside a quoted label.
 
 - reply_in_chat: use this for anything that is NOT a summary/diagram edit
   request -- a question, a request unrelated to the summary/diagrams (e.g.
