@@ -55,7 +55,7 @@ Full architecture (diagrams, design rationale, known limitations) is in [docs/AR
    6. On the first live Calendar/Gmail/Tasks action, a browser window opens requesting all three scopes in one consent (`meetingpilot/google_auth.py`) — accept it, and MeetingPilot writes `token.json` next to the project (also gitignored). Later runs reuse and refresh that token automatically.
    7. `calendar.events` allows creating/updating events, not wiping the whole calendar. `gmail.compose` only allows creating drafts — the app never sends mail. `tasks` allows creating/updating real Google Tasks to-dos.
 
-5. Run `python scripts/check_access.py` (or `uv run python scripts/check_access.py`) to verify all four API doors (Gemini text, Gemini vision, Calendar, Gmail) work before relying on them for a demo.
+5. Run `python scripts/check_access.py` (or `uv run python scripts/check_access.py`) to verify all five API doors (Gemini text, Gemini vision, Calendar, Gmail, Tasks) work before relying on them for a demo.
 
 ## Running it
 
