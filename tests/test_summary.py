@@ -82,27 +82,45 @@ def test_screenshots_are_passed_through_as_images(mock_call_tool):
     assert kwargs["images"] == [(b"fake-png-bytes", "image/png")]
 
 
-@patch("meetingpilot.summary.call_tool")
-def test_refine_summary_applies_feedback(mock_call_tool):
-    mock_call_tool.return_value = {
-        "summary": "Shorter version: Marcus will draft the roadmap by Friday.",
-        "diagrams": [],
-    }
+@patch("meetingpilot.summary.call_tool_choice")
+def test_refine_summary_applies_feedback(mock_call_tool_choice):
+    mock_call_tool_choice.return_value = (
+        "submit_summary",
+        {
+            "summary": "Shorter version: Marcus will draft the roadmap by Friday.",
+            "diagrams": [],
+        },
+    )
     current = MeetingSummary(summary="A much longer original summary about the roadmap.", diagrams=[])
     doc = ingest_text("Marcus: I will draft the roadmap by Friday.", source_name="t.txt")
 
-    result = refine_summary(current, "make it shorter", doc)
+    kind, result = refine_summary(current, "make it shorter", doc)
+    assert kind == "summary"
     assert result.summary == "Shorter version: Marcus will draft the roadmap by Friday."
 
 
-@patch("meetingpilot.summary.call_tool")
-def test_refine_summary_includes_current_draft_and_feedback_in_prompt(mock_call_tool):
-    mock_call_tool.return_value = {"summary": "revised", "diagrams": []}
+@patch("meetingpilot.summary.call_tool_choice")
+def test_refine_summary_includes_current_draft_and_feedback_in_prompt(mock_call_tool_choice):
+    mock_call_tool_choice.return_value = ("submit_summary", {"summary": "revised", "diagrams": []})
     current = MeetingSummary(summary="original draft text", diagrams=[])
     doc = ingest_text("Some transcript.", source_name="t.txt")
 
     refine_summary(current, "add more detail about Marcus", doc)
 
-    _, kwargs = mock_call_tool.call_args
+    _, kwargs = mock_call_tool_choice.call_args
     assert "original draft text" in kwargs["user"]
     assert "add more detail about Marcus" in kwargs["user"]
+
+
+@patch("meetingpilot.summary.call_tool_choice")
+def test_refine_summary_replies_in_chat_for_off_topic_message(mock_call_tool_choice):
+    mock_call_tool_choice.return_value = (
+        "reply_in_chat",
+        {"message": "This chat only edits the summary/diagrams -- use the Draft Gmail button for that."},
+    )
+    current = MeetingSummary(summary="original draft text", diagrams=[])
+    doc = ingest_text("Raj: I'll send the heads-up email today.", source_name="t.txt")
+
+    kind, result = refine_summary(current, "can u give me a draft for the email raj is supposed to send", doc)
+    assert kind == "chat"
+    assert "Draft Gmail" in result

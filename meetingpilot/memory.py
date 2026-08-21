@@ -189,3 +189,11 @@ def list_items_for_meeting(meeting_id: int, *, db_path: Optional[str] = None) ->
     with _session(db_path) as session:
         stmt = select(ActionItemRecord).where(ActionItemRecord.meeting_id == meeting_id)
         return list(session.scalars(stmt).all())
+
+
+def clear_all_data(*, db_path: Optional[str] = None) -> None:
+    """Delete every stored meeting and action item (used by the UI's clear-cache action)."""
+    with _session(db_path) as session:
+        session.query(ActionItemRecord).delete()
+        session.query(MeetingRecord).delete()
+        session.commit()

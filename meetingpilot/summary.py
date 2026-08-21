@@ -12,10 +12,26 @@ from __future__ import annotations
 
 from typing import Any
 
-from meetingpilot.llm import call_tool
+from meetingpilot.llm import call_tool, call_tool_choice
 from meetingpilot.models import MeetingSummary, Screenshot, TranscriptDocument
 
 SUMMARY_TOOL = "submit_summary"
+CHAT_REPLY_TOOL = "reply_in_chat"
+
+CHAT_REPLY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["message"],
+    "properties": {
+        "message": {
+            "type": "string",
+            "description": "A short, direct plain-text reply to what the user actually asked -- "
+            "this chat box only edits the summary/diagrams, so if their message isn't an edit "
+            "request, say so and, if relevant, point them to the right place in the UI instead "
+            "of pretending to make an edit.",
+        },
+    },
+}
 
 SUMMARY_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -102,24 +118,30 @@ def generate_summary(
     return MeetingSummary.model_validate(payload)
 
 
-REFINE_SYSTEM = """You are revising an existing meeting summary and its
-diagrams based on user feedback. You have the original transcript, any
-screenshots, the current draft, and what the user wants changed.
+REFINE_SYSTEM = """You are handling one message in a chat box attached to a
+meeting summary and its diagrams. You have the original transcript, any
+screenshots, the current draft, and the user's message. The chat box is
+scoped ONLY to editing that summary/diagrams -- decide which of two tools
+fits the user's message and call exactly one:
 
-Rules:
-- Apply the requested change precisely. Don't ignore it, don't overcorrect.
-- Everything NOT related to the feedback should stay materially the same as
-  the current draft -- this is an edit, not a rewrite from scratch. Don't
-  drift the tone, length, or content unless asked to.
-- Stay grounded in the original transcript/screenshots -- same "don't invent
-  what isn't there" discipline as the original summary. If the user asks for
-  information that genuinely isn't in the source material, say so in the
-  summary text rather than fabricating it.
-- Diagrams: if feedback is about one diagram, revise that diagram's title or
-  Mermaid code; leave other diagrams unchanged unless told otherwise. If
-  feedback asks to add or remove a diagram, do that.
-- Call submit_summary exactly once with the FULL updated summary and the
-  FULL updated diagrams list -- not just the part that changed.
+- submit_summary: use this ONLY if the message is actually requesting a
+  change to the summary or diagrams (e.g. "make it shorter", "add a diagram
+  for X", "rename the second diagram"). Apply the requested change
+  precisely -- don't ignore it, don't overcorrect. Everything NOT related to
+  the feedback should stay materially the same as the current draft -- this
+  is an edit, not a rewrite from scratch. Stay grounded in the original
+  transcript/screenshots -- same "don't invent what isn't there" discipline
+  as the original summary. If feedback is about one diagram, revise that
+  diagram's title or Mermaid code; leave other diagrams unchanged unless
+  told otherwise. Call it with the FULL updated summary and FULL updated
+  diagrams list, not just the part that changed.
+
+- reply_in_chat: use this for anything that is NOT a summary/diagram edit
+  request -- a question, a request unrelated to the summary/diagrams (e.g.
+  asking for an email draft, asking about an action item), or general
+  chat. Do not silently treat it as an edit request and do not fabricate a
+  summary change to paper over it -- just reply honestly and helpfully to
+  what was actually asked, grounded in the transcript if relevant.
 """
 
 
@@ -128,12 +150,14 @@ def refine_summary(
     feedback: str,
     document: TranscriptDocument,
     screenshots: list[Screenshot] | None = None,
-) -> MeetingSummary:
-    """Revise an existing summary/diagrams based on follow-up chat feedback.
+) -> tuple[str, MeetingSummary | str]:
+    """Handle one chat message about an existing summary/diagrams.
 
-    Same schema and multimodal grounding as generate_summary(), but the
-    prompt includes the current draft plus the user's requested change so
-    the model edits it rather than starting over from scratch.
+    Returns ("summary", MeetingSummary) if the message was actually a
+    summary/diagram edit request, or ("chat", str) with a plain-text reply
+    otherwise -- the model picks between the two based on the message, so a
+    tangential or off-topic message gets an honest reply instead of a
+    fabricated "updated" summary.
     """
     transcript_block = "\n".join(turn.as_prompt_line() for turn in document.turns)
     screenshot_note = (
@@ -146,16 +170,28 @@ def refine_summary(
         f"Original transcript:\n{transcript_block}"
         f"{screenshot_note}\n\n"
         f"Current draft (JSON):\n{current.model_dump_json()}\n\n"
-        f"User feedback / requested change:\n{feedback}\n\n"
-        "Apply this feedback and resubmit the full updated summary + diagrams."
+        f"User message:\n{feedback}"
     )
     images = [(shot.data, shot.mime_type) for shot in screenshots] if screenshots else None
-    payload = call_tool(
+    tool_name, payload = call_tool_choice(
         system=REFINE_SYSTEM,
         user=user,
-        tool_name=SUMMARY_TOOL,
-        tool_description="Submit the revised meeting summary and diagrams.",
-        input_schema=SUMMARY_SCHEMA,
+        tools=[
+            {
+                "name": SUMMARY_TOOL,
+                "description": "Submit the revised meeting summary and diagrams -- only if the "
+                "message is actually requesting a change to them.",
+                "schema": SUMMARY_SCHEMA,
+            },
+            {
+                "name": CHAT_REPLY_TOOL,
+                "description": "Reply directly in chat -- use for anything that is not a "
+                "summary/diagram edit request.",
+                "schema": CHAT_REPLY_SCHEMA,
+            },
+        ],
         images=images,
     )
-    return MeetingSummary.model_validate(payload)
+    if tool_name == SUMMARY_TOOL:
+        return "summary", MeetingSummary.model_validate(payload)
+    return "chat", payload["message"]
