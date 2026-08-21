@@ -6,6 +6,19 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 - Transcript chunking for long meetings — planned, not yet built.
 
+## [0.7.0] - 2026-08-21
+
+### Added
+- `clear_all_data()` (`meetingpilot/memory.py`) plus a "Clear all stored data" button in the sidebar's "⚙️ Testing & advanced options" — Streamlit's own cache-clear command doesn't touch the SQLite DB, so the "Open items from previous meetings" list previously had no in-UI way to reset.
+- `scripts/launch_app.sh` and a `.command`/`.app` local launcher — clears the DB + Streamlit cache, starts the server, and opens the browser in one double-click.
+
+### Changed
+- **Gmail drafts are now LLM-composed** (`compose_email()` in `meetingpilot/gmail_tool.py`) — a real subject/body grounded in the task, owner, due date, and source quote, instead of a template dump of internal fields (`Owner:`/`Priority:`/`Confidence:`) that a recipient would never actually see in a real email.
+- **Summary-refinement chat now distinguishes edit requests from everything else** (`refine_summary()` in `meetingpilot/summary.py`, via new `call_tool_choice()` in `meetingpilot/llm.py`) — an off-topic chat message (a question, an unrelated request) gets an honest plain-text reply instead of being silently forced through the summary-edit schema and always claiming "Updated the summary and diagrams above."
+
+### Fixed
+- Gitignored `.agents/`, `.claude/`, `_bmad/` (local AI-tooling caches, not project code) and `scripts/streamlit.log` (local run artifact) so a broad `git add` can't sweep them into a commit.
+
 ## [0.6.0] - 2026-08-20
 
 ### Added

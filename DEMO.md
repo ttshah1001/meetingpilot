@@ -39,7 +39,7 @@ Point at the `docs/ARCHITECTURE.md` diagram if it's on a slide; otherwise the si
 
 Click **Push to Calendar** on one dated item — show the dry-run JSON payload (`summary`/`description`/`start.date`). "Same body a real `events.insert` call would send."
 
-Click **Draft Gmail** on the same item — show the dry-run preview. "Structurally draft-only — this code path can only call `drafts().create`, there's no send call anywhere in the module."
+Click **Draft Gmail** on the same item — show the dry-run preview. "That's a real composed subject and body from an LLM call grounded in the task and source quote — not a template dump of internal fields. And it's structurally draft-only — this code path can only call `drafts().create`, there's no send call anywhere in the module."
 
 Click **Download .ics** on one item — open the downloaded file if easy, or just note: "no API key, no network, works even if Google or the venue wifi is down."
 
@@ -87,7 +87,7 @@ Optional: point at the `.vtt` timestamps in the speaker-turns table — ingestio
 
 ### 4:15–4:45 — Close
 
-> "69 tests cover schema, date math, dedup, SQLite memory, Gemini's response parsing, and mocked Calendar/Gmail/Tasks/.ics — `uv run pytest -q`. Everything ran live against the real Gemini API before this demo was written, including the multimodal, diagram, and chat-refinement paths. Live Calendar/Gmail/Tasks push is documented in the README; we stayed on dry-run so nothing here depends on OAuth working in this room."
+> "71 tests cover schema, date math, dedup, SQLite memory, Gemini's response parsing, and mocked Calendar/Gmail/Tasks/.ics — `uv run pytest -q`. Everything ran live against the real Gemini API before this demo was written, including the multimodal, diagram, and chat-refinement paths. Live Calendar/Gmail/Tasks push is documented in the README; we stayed on dry-run so nothing here depends on OAuth working in this room."
 
 Stop. Do not start a fourth transcript unless there's real time left.
 
