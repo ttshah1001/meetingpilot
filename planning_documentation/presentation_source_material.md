@@ -137,14 +137,14 @@ Multi-file drag-and-drop for transcript + screenshots (with validation against d
 
 ## 6. How this was actually built — process, not just output
 
-**Starting point**: a `me_in/meetingpilot_decisions_and_todo.md` file the user had already written before AI involvement, scoping the multimodal extension idea, rejected alternatives, and an initial Build TODO list. This became the running decision log for the entire session — every major choice from that point on was logged there with reasoning, not just the final state.
+**Starting point**: a `planning_documentation/meetingpilot_decisions_and_todo.md` file the user had already written before AI involvement, scoping the multimodal extension idea, rejected alternatives, and an initial Build TODO list. This became the running decision log for the entire session — every major choice from that point on was logged there with reasoning, not just the final state.
 
 **Verification before building, not after**: before writing any new code, real API access was verified against live endpoints (`scripts/check_access.py`, built specifically for this) — Gemini text, Gemini vision, Calendar, Gmail, and later Tasks — each tested with the smallest possible real request rather than assumed to work from documentation. This surfaced several real, non-obvious problems before they could waste build time:
 - A macOS-specific OAuth bug (`localhost` resolving to a different address than the callback server was listening on) that looked like a permissions problem but was a networking one.
 - A Google Calendar scope misunderstanding — `calendar.events` covers the *Events* resource, not the *Calendars* resource; calling the wrong endpoint 403'd even with fully valid access.
 - A misconception that project owners need to add themselves as OAuth test users (they don't — that's expected, not an error).
 
-**BMAD workflow — considered, explained, deliberately not fully adopted**: BMAD (a structured multi-agent product-development framework: product brief → PRD → architecture → spec → epics/stories → build) was explained in full at the start of the session as an available option. The team chose a **lighter-weight path instead**: `me_in/meetingpilot_project_spec.md` (audited and kept in sync throughout, functioning as the de facto living spec) plus targeted use of the `/code-review` skill at specific checkpoints, rather than running the full BMAD ceremony (formal PRD, architecture doc, spec distillation, epic/story breakdown). This was a deliberate scope decision for a fast course sprint — the heavier BMAD machinery (Test Architect framework setup, formal traceability matrices, NFR audits) was judged to cost more time than it would save for a 3-person, few-day project, versus the direct build-test-verify-document loop actually used.
+**BMAD workflow — considered, explained, deliberately not fully adopted**: BMAD (a structured multi-agent product-development framework: product brief → PRD → architecture → spec → epics/stories → build) was explained in full at the start of the session as an available option. The team chose a **lighter-weight path instead**: `planning_documentation/meetingpilot_project_spec.md` (audited and kept in sync throughout, functioning as the de facto living spec) plus targeted use of the `/code-review` skill at specific checkpoints, rather than running the full BMAD ceremony (formal PRD, architecture doc, spec distillation, epic/story breakdown). This was a deliberate scope decision for a fast course sprint — the heavier BMAD machinery (Test Architect framework setup, formal traceability matrices, NFR audits) was judged to cost more time than it would save for a 3-person, few-day project, versus the direct build-test-verify-document loop actually used.
 
 **The iteration loop that was actually used, repeatedly:**
 1. Build a feature
@@ -152,7 +152,7 @@ Multi-file drag-and-drop for transcript + screenshots (with validation against d
 3. Verify live against the actual Gemini/Google APIs (not just mocks) — catch things mocks structurally cannot catch
 4. Run `/code-review` at an appropriate effort level on the diff
 5. Fix what it finds, add regression tests specifically for what was found
-6. Log the decision + what was learned in `me_in/` docs
+6. Log the decision + what was learned in `planning_documentation/` docs
 7. Commit, push, open a PR, merge
 
 This loop caught real bugs repeatedly — not hypothetical ones. See Section 9 for the specific list; it's long, and that's the point: a working test suite that's "green" is not the same as a working feature, and this project has concrete evidence of both mocked tests passing *and* the underlying feature still being broken until live-verified (the multimodal-crowding bug is the clearest example — 51/51 tests were green when that bug existed).
@@ -223,6 +223,6 @@ Each of these was caught by actually running the software against real inputs, n
 - `docs/ARCHITECTURE.md` — full diagrams, design rationale, and the complete known-limitations list with more technical detail than this document
 - `CHANGELOG.md` — every version bump with what changed and why, in order
 - `DEMO.md` — the actual timed live-demo script, including specific things to click and say
-- `me_in/meetingpilot_decisions_and_todo.md` — the full, chronological, unfiltered decision log this document was distilled from — includes more granular detail on every bug and decision than fits here
-- `me_in/meetingpilot_project_spec.md` — the rubric-alignment tracking document, including a literal checklist mapping rubric criteria to what's built
-- `me_in/meetingpilot_tagline_options.md` — tagline alternatives if the current one isn't right for a slide title
+- `planning_documentation/meetingpilot_decisions_and_todo.md` — the full, chronological, unfiltered decision log this document was distilled from — includes more granular detail on every bug and decision than fits here
+- `planning_documentation/meetingpilot_project_spec.md` — the rubric-alignment tracking document, including a literal checklist mapping rubric criteria to what's built
+- `planning_documentation/meetingpilot_tagline_options.md` — tagline alternatives if the current one isn't right for a slide title
