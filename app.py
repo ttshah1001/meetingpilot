@@ -238,7 +238,7 @@ def main() -> None:
         grouped.setdefault(item.owner or "Unassigned", []).append(item)
 
     for owner, items in grouped.items():
-        st.markdown(f"### {owner}")
+        st.markdown(f"### {_escape_markdown(owner)}")
         for item in items:
             flags = []
             if item.needs_review:
@@ -256,23 +256,23 @@ def main() -> None:
             with st.expander(header):
                 st.write(
                     f"**Due:** {item.due_date_iso or item.proposed_due_date_iso or '—'} "
-                    f"(spoken as: {item.due_date_text or '—'})"
+                    f"(spoken as: {_escape_markdown(item.due_date_text) if item.due_date_text else '—'})"
                 )
                 if item.proposed_owner:
-                    st.write(f"**Proposed owner:** {item.proposed_owner}")
+                    st.write(f"**Proposed owner:** {_escape_markdown(item.proposed_owner)}")
                 st.write("**Source quote**")
-                st.markdown(f"> {item.source_quote}")
+                st.markdown(f"> {_escape_markdown(item.source_quote)}")
                 if item.merged_from_quotes:
                     st.caption("Also merged from:")
                     for quote in item.merged_from_quotes:
-                        st.markdown(f"> {quote}")
+                        st.markdown(f"> {_escape_markdown(quote)}")
                 if item.still_open_from_last_time:
                     st.info(
                         "Still open from last time:\n\n- "
-                        + "\n- ".join(item.still_open_from_last_time)
+                        + "\n- ".join(_escape_markdown(row) for row in item.still_open_from_last_time)
                     )
                 if item.planning_notes:
-                    st.caption(item.planning_notes)
+                    st.caption(_escape_markdown(item.planning_notes))
                 due = item.due_date_iso or item.proposed_due_date_iso
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
