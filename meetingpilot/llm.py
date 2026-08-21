@@ -69,6 +69,35 @@ def call_tool(
     real image content blocks alongside the text — used by the multimodal
     extraction call for screenshots.
     """
+    _, payload = call_tool_choice(
+        system=system,
+        user=user,
+        tools=[
+            {"name": tool_name, "description": tool_description, "schema": input_schema}
+        ],
+        images=images,
+        max_tokens=max_tokens,
+    )
+    return payload
+
+
+def call_tool_choice(
+    *,
+    system: str,
+    user: str,
+    tools: list[dict[str, Any]],
+    images: list[tuple[bytes, str]] | None = None,
+    max_tokens: int = 8192,
+) -> tuple[str, dict[str, Any]]:
+    """Force exactly one tool call, chosen by the model from several options.
+
+    `tools` is a list of {"name", "description", "schema"} dicts. Returns
+    (name_of_tool_called, tool_input_json) so the caller can branch on which
+    one the model picked -- e.g. offering both "apply this structured edit"
+    and "just reply in plain text" and letting the model decide which fits
+    the user's message, rather than forcing every message through one
+    schema.
+    """
     settings = get_settings()
     if not settings.gemini_api_key:
         raise LLMError(
@@ -76,12 +105,16 @@ def call_tool(
         )
 
     client = genai.Client(api_key=settings.gemini_api_key)
-    function_declaration = types.FunctionDeclaration(
-        name=tool_name,
-        description=tool_description,
-        parameters=_to_gemini_schema(input_schema),
-    )
-    tool = types.Tool(function_declarations=[function_declaration])
+    function_declarations = [
+        types.FunctionDeclaration(
+            name=t["name"],
+            description=t["description"],
+            parameters=_to_gemini_schema(t["schema"]),
+        )
+        for t in tools
+    ]
+    tool = types.Tool(function_declarations=function_declarations)
+    allowed_names = [t["name"] for t in tools]
 
     contents: Any = user
     if images:
@@ -96,7 +129,7 @@ def call_tool(
         tool_config=types.ToolConfig(
             function_calling_config=types.FunctionCallingConfig(
                 mode="ANY",
-                allowed_function_names=[tool_name],
+                allowed_function_names=allowed_names,
             )
         ),
     )
@@ -125,8 +158,8 @@ def call_tool(
             parts = candidate.content.parts if candidate.content else None
             for part in parts or []:
                 fn_call = getattr(part, "function_call", None)
-                if fn_call and fn_call.name == tool_name:
-                    return dict(fn_call.args) if fn_call.args else {}
+                if fn_call and fn_call.name in allowed_names:
+                    return fn_call.name, (dict(fn_call.args) if fn_call.args else {})
             last_finish_reason = getattr(candidate, "finish_reason", None)
 
         if attempt < MAX_RETRIES - 1:

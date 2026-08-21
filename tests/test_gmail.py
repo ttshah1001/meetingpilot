@@ -1,10 +1,11 @@
-"""Gmail draft tool tests — mocked Google client, no live network, never sends."""
+"""Gmail draft tool tests — mocked Google client and LLM, no live network, never sends."""
 
 from __future__ import annotations
 
 import base64
+from unittest.mock import patch
 
-from meetingpilot.gmail_tool import build_draft_payload, create_draft
+from meetingpilot.gmail_tool import build_draft_payload, compose_email, create_draft
 from meetingpilot.models import PlannedItem, Priority
 
 
@@ -47,22 +48,44 @@ def _item() -> PlannedItem:
     )
 
 
-def test_build_draft_payload_shape():
+@patch("meetingpilot.gmail_tool.call_tool")
+def test_compose_email_grounds_prompt_in_item_fields(mock_call_tool):
+    mock_call_tool.return_value = {"subject": "Q3 checkout roadmap", "body": "Hi Priya, ..."}
+    compose_email(_item())
+
+    _, kwargs = mock_call_tool.call_args
+    assert "Draft the Q3 checkout roadmap" in kwargs["user"]
+    assert "Marcus" in kwargs["user"]
+    assert "I will draft the Q3 checkout roadmap" in kwargs["user"]
+
+
+@patch("meetingpilot.gmail_tool.call_tool")
+def test_build_draft_payload_uses_composed_subject_and_body(mock_call_tool):
+    mock_call_tool.return_value = {
+        "subject": "Q3 checkout roadmap",
+        "body": "Hi Priya, quick note that the Q3 checkout roadmap is due Friday, will send it over then.",
+    }
     payload, preview = build_draft_payload(_item())
     assert "message" in payload
     raw = payload["message"]["raw"]
     decoded = base64.urlsafe_b64decode(raw.encode("utf-8")).decode("utf-8")
-    assert "Draft the Q3 checkout roadmap" in decoded
-    assert "Marcus" in decoded
-    assert "I will draft the Q3 checkout roadmap" in decoded
+    assert "Q3 checkout roadmap" in decoded
+    assert "quick note that the Q3 checkout roadmap is due Friday" in decoded
+    # Composed body should read like an email, not a field dump.
+    assert "Confidence" not in decoded
+    assert "Priority" not in decoded
     # The preview is a plain-text rendering, independent of MIME wire
     # encoding (e.g. base64 CTE for non-ASCII bodies) — always readable.
-    assert "Draft the Q3 checkout roadmap" in preview
-    assert "Marcus" in preview
-    assert "I will draft the Q3 checkout roadmap" in preview
+    assert "Q3 checkout roadmap" in preview
+    assert "quick note that the Q3 checkout roadmap is due Friday" in preview
 
 
-def test_preview_stays_readable_for_non_ascii_body():
+@patch("meetingpilot.gmail_tool.call_tool")
+def test_preview_stays_readable_for_non_ascii_body(mock_call_tool):
+    mock_call_tool.return_value = {
+        "subject": "Coupon copy check",
+        "body": "Hey Lin, once the mock is up — that's medium priority — can you ping legal about the coupon copy?",
+    }
     item = PlannedItem(
         task="Ping legal about the coupon copy",
         owner="Lin",
@@ -76,16 +99,20 @@ def test_preview_stays_readable_for_non_ascii_body():
     assert "base64" not in preview.lower()
 
 
-def test_dry_run_does_not_call_service():
+@patch("meetingpilot.gmail_tool.call_tool")
+def test_dry_run_does_not_call_service(mock_call_tool):
+    mock_call_tool.return_value = {"subject": "Q3 checkout roadmap", "body": "Hi Priya, ..."}
     service = FakeService()
     result = create_draft(_item(), dry_run=True, gmail_service=service)
     assert result.dry_run is True
     assert result.draft_id is None
     assert service._users._drafts.calls == []
-    assert "Draft the Q3 checkout roadmap" in result.mime_preview
+    assert "Q3 checkout roadmap" in result.mime_preview
 
 
-def test_live_draft_uses_mocked_service_and_never_sends():
+@patch("meetingpilot.gmail_tool.call_tool")
+def test_live_draft_uses_mocked_service_and_never_sends(mock_call_tool):
+    mock_call_tool.return_value = {"subject": "Q3 checkout roadmap", "body": "Hi Priya, ..."}
     service = FakeService()
     result = create_draft(_item(), dry_run=False, gmail_service=service)
     assert result.dry_run is False

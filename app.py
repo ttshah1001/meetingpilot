@@ -14,7 +14,7 @@ from meetingpilot.config import get_settings
 from meetingpilot.gmail_tool import create_draft
 from meetingpilot.ics_export import build_ics_bundle_bytes, build_ics_bytes, ics_filename
 from meetingpilot.ingestion import ingest_text
-from meetingpilot.memory import list_open_items
+from meetingpilot.memory import clear_all_data, list_open_items
 from meetingpilot.models import SCREENSHOT_MIME_BY_EXTENSION, Screenshot
 from meetingpilot.pipeline import process_meeting
 from meetingpilot.summary import refine_summary
@@ -119,6 +119,17 @@ def main() -> None:
             "decides how many diagrams are warranted (0, 1, or more) — off by default since it's an extra "
             "call and not every meeting has anything summary/diagram-worthy.",
         )
+        st.markdown("---")
+        st.caption(
+            "Streamlit's cache only holds computed function results — it does not touch the SQLite "
+            "database, so the button below is what actually resets the 'Open items from previous "
+            "meetings' list and every stored meeting."
+        )
+        if st.button("Clear all stored data (meetings + action items)"):
+            clear_all_data()
+            st.cache_data.clear()
+            st.success("Cleared all meetings and action items from the database.")
+            st.rerun()
 
     meeting_title = st.text_input("Meeting title", value="Weekly sync")
     meeting_date = st.date_input("Meeting date", value=date.today())
@@ -395,19 +406,22 @@ def main() -> None:
                     }
                 )
             else:
-                with st.spinner("Regenerating summary + diagrams…"):
+                with st.spinner("Thinking…"):
                     try:
-                        updated = refine_summary(
+                        kind, value = refine_summary(
                             result.summary,
                             feedback,
                             last_document,
                             screenshots=last_screenshots or None,
                         )
-                        result.summary = updated
-                        st.session_state["result"] = result
-                        chat_history.append(
-                            {"role": "assistant", "content": "Updated the summary and diagrams above."}
-                        )
+                        if kind == "summary":
+                            result.summary = value
+                            st.session_state["result"] = result
+                            chat_history.append(
+                                {"role": "assistant", "content": "Updated the summary and diagrams above."}
+                            )
+                        else:
+                            chat_history.append({"role": "assistant", "content": value})
                     except Exception as exc:  # noqa: BLE001
                         chat_history.append({"role": "assistant", "content": f"Couldn't apply that: {exc}"})
             st.rerun()
